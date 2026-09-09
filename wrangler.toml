@@ -1,3 +1,5 @@
+# Precisa bater EXATAMENTE com o nome do projeto no painel do Cloudflare:
+# é daqui que `wrangler pages deploy` descobre para onde publicar.
 name = "debony"
 compatibility_date = "2026-09-08"
 pages_build_output_dir = "site"
@@ -5,3 +7,7 @@ pages_build_output_dir = "site"
 # Segredos do formulário são definidos no painel do Pages
 # (Settings > Environment variables) ou por `wrangler pages secret put`:
 #   CONTACT_TO, CONTACT_FROM, RESEND_API_KEY, CONTACT_WEBHOOK (opcional)
+#
+# Com "Deploy command" = `npx wrangler pages deploy site`, o build roda um
+# direct upload e exige também CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID
+# no ambiente de build.

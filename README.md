@@ -48,9 +48,25 @@ Pelo painel, conectando o repositório:
 - **Build command:** `npm run build`
 - **Build output directory:** `site`
 - **Root directory:** raiz do repo
+- **Deploy command:** `npx wrangler pages deploy site`
 
 O `wrangler.toml` já declara `pages_build_output_dir = "site"`, e as Functions
 em `functions/` são detectadas automaticamente.
+
+> **Não use `npx wrangler deploy`.** Esse é o comando de Workers: ele ignora
+> `pages_build_output_dir` e falha com *"Missing entry-point to Worker script
+> or to assets directory"*. Pages usa `wrangler pages deploy`.
+
+Dois pré-requisitos desse deploy command:
+
+1. O campo `name` do `wrangler.toml` precisa bater **exatamente** com o nome do
+   projeto no painel. É de lá que o wrangler descobre onde publicar.
+2. `wrangler pages deploy` faz um *direct upload*, que é um modo diferente do
+   git-integrated. Ele exige `CLOUDFLARE_API_TOKEN` (permissão *Cloudflare
+   Pages: Edit*) e `CLOUDFLARE_ACCOUNT_ID` nas variáveis de ambiente do build.
+
+Alternativa mais simples: deixar o **Deploy command vazio**. Com integração
+git, o Pages publica o output directory sozinho, sem token e sem wrangler.
 
 ### Segredos do formulário
 
