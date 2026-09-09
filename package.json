@@ -1,0 +1,25 @@
+{
+  "name": "debony-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Clone estático de debonyusinagem.com.br para Cloudflare Pages",
+  "scripts": {
+    "mirror": "node tools/mirror.mjs --out site --concurrency 3 --interval 300",
+    "optimize": "node tools/optimize-images.mjs --out site",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.functions.json",
+    "build": "node tools/build.mjs --out site",
+    "check": "node tools/check-links.mjs site",
+    "verify": "npm run typecheck && npm run check",
+    "release": "npm run mirror && npm run optimize && npm run build && npm run verify",
+    "dev": "wrangler pages dev site",
+    "deploy": "wrangler pages deploy site --project-name debony"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240925.0",
+    "esbuild": "^0.28.2",
+    "puppeteer-core": "^25.10.0",
+    "sharp": "^0.35.4",
+    "typescript": "^5.6.0"
+  }
+}

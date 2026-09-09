@@ -1,0 +1,13 @@
+# Rotas do WordPress que não existem mais no site estático.
+/wp-admin       /           301
+/wp-admin/*     /           301
+/wp-login.php   /           301
+/xmlrpc.php     /           410
+/feed           /           301
+/feed/*         /           301
+/comments/feed  /           301
+/wp-json/*      /           410
+
+# Endereços antigos que ainda aparecem em links externos.
+/index.php      /           301
+/home           /           301

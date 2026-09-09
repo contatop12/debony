@@ -1,0 +1,29 @@
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Assets do WordPress têm nome versionado e nunca mudam no lugar.
+/wp-content/uploads/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/wp-content/themes/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/wp-content/plugins/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/wp-includes/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML sempre revalida, para publicar correção sem esperar cache.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/api/*
+  Cache-Control: no-store
