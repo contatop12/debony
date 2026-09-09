@@ -11,6 +11,24 @@ const ROOT = resolve(process.argv[2] ?? 'site');
 const REF_RE =
   /(?:href|src|data-src|data-lazy-src|poster|action)\s*=\s*"([^"]+)"|url\(\s*"?'?([^)"']+)"?'?\s*\)|srcset\s*=\s*"([^"]+)"/gi;
 
+/**
+ * Nem toda referência vive num atributo conhecido: o Elementor guarda a galeria
+ * do background slideshow como JSON em `data-settings`, e og:image usa
+ * `content=`. Olhar só os atributos da lista acima dava um "OK" falso enquanto
+ * a home tinha uma seção inteira sem imagem.
+ */
+const LOOSE_REF_RE =
+  /(?<![A-Za-z0-9_\-.~%:])(?:\.{0,2}\\?\/)[A-Za-z0-9_\-.~%\\/]*\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|mp4)(?=["'\s,)>&?#]|$)/gi;
+
+/**
+ * A varredura solta casa por caminho, então um nome de arquivo citado dentro de
+ * comentário vira alvo ausente. O CSS do WordPress traz anotações como
+ * `/* ... classic-themes.min.css *\/` que não referenciam nada.
+ */
+function stripComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+}
+
 async function walk(dir) {
   const out = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -44,6 +62,7 @@ for (const file of files) {
       refs.add(m[1] ?? m[2]);
     }
   }
+  for (const m of stripComments(text).matchAll(LOOSE_REF_RE)) refs.add(m[0]);
 
   for (const raw of refs) {
     if (!raw) continue;

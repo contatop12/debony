@@ -61,6 +61,18 @@ async function collectIconPaths(textFiles) {
 const REF_RE =
   /(?:href|src|data-src|data-lazy-src|poster)\s*=\s*"([^"]+)"|url\(\s*"?'?([^)"']+)"?'?\s*\)|srcset\s*=\s*"([^"]+)"/gi;
 
+/**
+ * Varredura solta, por caminho, para o que não está num atributo conhecido:
+ * o JSON de `data-settings` do Elementor (galeria do background slideshow) e o
+ * `content=` das meta og:image. Sem isto a imagem virava .webp mas a referência
+ * continuava .png, e a seção ficava vazia na página.
+ *
+ * É seguro ser abrangente porque a reescrita só acontece quando o arquivo
+ * original sumiu e existe um .webp irmão.
+ */
+const LOOSE_IMG_RE =
+  /(?<![A-Za-z0-9_\-.~%:])(?:\.{0,2}\\?\/)[A-Za-z0-9_\-.~%\\/]*\.(?:png|jpe?g)(?=["'\s,)>&?#]|$)/gi;
+
 const fileExists = async (p) => {
   try {
     return (await stat(p)).isFile();
@@ -101,6 +113,9 @@ async function rewriteRefs(textFiles) {
         refs.add(m[1] ?? m[2]);
       }
     }
+    // Nome citado em comentário não é referência: não deve ser reescrito.
+    const semComentarios = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    for (const m of semComentarios.matchAll(LOOSE_IMG_RE)) refs.add(m[0]);
 
     let text = source;
     for (const rawRef of refs) {

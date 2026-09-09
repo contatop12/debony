@@ -282,8 +282,19 @@ const SRCSET_RE = /\b(?:srcset|data-srcset|imagesrcset)\s*=\s*("([^"]*)"|'([^']*
 const CSS_URL_RE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"]+))\s*\)/gi;
 const CSS_IMPORT_RE = /@import\s+(?:url\()?\s*(?:"([^"]*)"|'([^']*)')/gi;
 // Elementor/WP embutem JSON com barras escapadas em atributos data-*.
-const ESCAPED_URL_RE = /https?:\\\/\\\/(?:www\.)?debonyusinagem\.com\.br[^"'\s\\]*(?:\\\/[^"'\s\\]*)*/gi;
-const PLAIN_URL_RE = /https?:\/\/(?:www\.)?debonyusinagem\.com\.br[^\s"'()<>\\]*/gi;
+/*
+ * O `&` precisa estar fora da classe de caracteres.
+ *
+ * Num data-settings do Elementor o JSON vem com entidades HTML, e `&quot;` é
+ * texto literal — não contém aspas. Sem excluir o `&`, o match atravessa o
+ * `&quot;` que fecha a URL, engole `},{"id":...,"url":"https:` e só para no
+ * `\` seguinte. Como matches de regex não se sobrepõem, a URL seguinte da
+ * galeria já foi consumida e nunca é descoberta: a primeira imagem de cada
+ * slideshow vinha, as demais sumiam.
+ */
+const ESCAPED_URL_RE =
+  /https?:\\\/\\\/(?:www\.)?debonyusinagem\.com\.br[^"'\s\\&]*(?:\\\/[^"'\s\\&]*)*/gi;
+const PLAIN_URL_RE = /https?:\/\/(?:www\.)?debonyusinagem\.com\.br[^\s"'()<>\\&]*/gi;
 
 function unescapeSlashes(s) {
   return s.replace(/\\\//g, '/');
@@ -552,7 +563,12 @@ function escapeRegExp(s) {
  */
 function replaceUrl(haystack, needle, replacement) {
   if (!needle) return haystack;
-  const re = new RegExp(escapeRegExp(needle) + '(?=["\'\\s,)\\\\>&#]|$)', 'g');
+  // A barra invertida NÃO é fronteira: dentro do JSON escapado do Elementor a
+  // URL continua em `\/`, então aceitá-la como fim de match fazia a base de
+  // diretório `.../wp-content/uploads` casar no meio da URL e truncar o resto
+  // (`...uploads\/2024\/03\/Group-16-1.png` perdia o caminho e o arquivo
+  // nunca era baixado).
+  const re = new RegExp(escapeRegExp(needle) + '(?=["\'\\s,)>&#]|$)', 'g');
   return haystack.replace(re, () => replacement);
 }
 
