@@ -60,6 +60,11 @@ sozinho — não precisa de `CLOUDFLARE_API_TOKEN` nem de `CLOUDFLARE_ACCOUNT_ID
 > O campo `name` do `wrangler.jsonc` precisa bater **exatamente** com o nome do
 > Worker no painel; é por ele que o deploy encontra o destino.
 
+Uma diferença em relação ao Pages: `_redirects` só aceita os status **200,
+301, 302, 303, 307 e 308**. O `410 Gone` que o Pages aceitava é recusado na
+validação do deploy — e ela roda no servidor, *depois* de subir todos os
+assets. Por isso `npm run build` valida o arquivo antes, e falha localmente.
+
 `_headers` e `_redirects` continuam valendo: Workers static assets lê os dois a
 partir do diretório de assets, e o build já os copia de `public/` para `site/`.
 Eles não se aplicam ao que o Worker responde, mas isso não afeta nada aqui —

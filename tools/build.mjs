@@ -7,6 +7,7 @@
 
 import { build } from 'esbuild';
 import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
+
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -32,6 +33,57 @@ function relFromPage(pageFile, assetFile) {
   return rel;
 }
 
+/**
+ * Workers static assets recusa código fora desta lista, e a recusa só aparece
+ * na validação server-side do deploy — depois de subir todos os assets. Melhor
+ * quebrar o build aqui. (O Pages aceitava 410; o Workers não.)
+ */
+const STATUS_PERMITIDOS = new Set([200, 301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 2100;
+
+async function validateRedirects(file) {
+  let texto;
+  try {
+    texto = await readFile(file, 'utf8');
+  } catch {
+    return; // sem _redirects não há o que validar
+  }
+
+  const problemas = [];
+  let regras = 0;
+
+  texto.split(/\r?\n/).forEach((linha, i) => {
+    const limpa = linha.trim();
+    if (!limpa || limpa.startsWith('#')) return;
+    regras++;
+
+    const partes = limpa.split(/\s+/);
+    if (partes.length < 2) {
+      problemas.push(`linha ${i + 1}: faltam origem e destino -> "${limpa}"`);
+      return;
+    }
+    if (partes.length < 3) return; // sem código: o padrão (302) é válido
+
+    const status = Number(partes[2]);
+    if (!STATUS_PERMITIDOS.has(status)) {
+      problemas.push(
+        `linha ${i + 1}: status ${partes[2]} não é aceito ` +
+          `(use ${[...STATUS_PERMITIDOS].join(', ')}) -> "${limpa}"`,
+      );
+    }
+  });
+
+  if (regras > MAX_REDIRECTS) {
+    problemas.push(`${regras} regras excedem o limite de ${MAX_REDIRECTS}`);
+  }
+
+  if (problemas.length) {
+    console.error(`\n_redirects inválido:`);
+    for (const p of problemas) console.error(`  ${p}`);
+    throw new Error('_redirects seria recusado no deploy');
+  }
+}
+
 async function main() {
   // 1. TypeScript -> bundle único, sem dependências externas.
   const result = await build({
@@ -49,6 +101,7 @@ async function main() {
 
   // 2. _headers, _redirects e CSS próprio para a raiz do output.
   await cp('public', OUT_DIR, { recursive: true });
+  await validateRedirects(join(OUT_DIR, '_redirects'));
 
   // 3. Injeta os assets próprios em cada página.
   const pages = (await walk(OUT_DIR)).filter((f) => f.endsWith('.html'));

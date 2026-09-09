@@ -1,12 +1,15 @@
 # Rotas do WordPress que não existem mais no site estático.
+#
+# /xmlrpc.php e /wp-json/* ficam de fora de propósito: eles não mudaram de
+# lugar, simplesmente não existem. Caem no 404 natural do not_found_handling.
+# (Workers static assets só aceita 200, 301, 302, 303, 307 e 308 — o 410 que
+# o Pages aceitava é recusado na validação do deploy.)
 /wp-admin       /           301
 /wp-admin/*     /           301
 /wp-login.php   /           301
-/xmlrpc.php     /           410
 /feed           /           301
 /feed/*         /           301
 /comments/feed  /           301
-/wp-json/*      /           410
 
 # Endereços antigos que ainda aparecem em links externos.
 /index.php      /           301
