@@ -1,7 +1,7 @@
 # Debony — clone estático
 
 Clone fiel de `debonyusinagem.com.br` (WordPress + Elementor) para deploy no
-Cloudflare Pages. O HTML, o CSS e as imagens são os do site original, com todas
+Cloudflare Workers com static assets. O HTML, o CSS e as imagens são os do site original, com todas
 as URLs reescritas para caminhos relativos. O que era backend PHP foi
 substituído por TypeScript: um bundle no cliente e uma Pages Function.
 
@@ -11,8 +11,9 @@ substituído por TypeScript: um bundle no cliente e uma Pages Function.
 |---|---|
 | `site/` | Output do deploy (gerado — não editar à mão) |
 | `src/` | TypeScript do cliente, compilado para `site/assets/js/app.js` |
-| `functions/api/contact.ts` | Pages Function que recebe o formulário de contato |
+| `worker/index.ts` | Worker: serve os assets e responde `/api/contact` |
 | `public/` | `_headers`, `_redirects` e CSS próprio, copiados para `site/` no build |
+| `wrangler.jsonc` | Config do Worker (nome, assets, roteamento) |
 | `tools/` | Crawler do mirror, conversor de imagens, build e verificadores |
 
 ## Comandos
@@ -41,38 +42,37 @@ node tools/test-lightbox.mjs http://127.0.0.1:8905/certificados/
 node tools/scan-404.mjs      http://127.0.0.1:8905
 ```
 
-## Deploy no Cloudflare Pages
+## Deploy no Cloudflare Workers
 
-Pelo painel, conectando o repositório:
+O projeto é um **Worker com static assets**, não um projeto Pages. O binding
+`ASSETS` serve `site/`, e `run_worker_first: ["/api/*"]` faz só a API entrar no
+código do Worker — o resto é servido direto pelo Asset Worker.
+
+Configuração no painel (Workers Builds):
 
 - **Build command:** `npm run build`
-- **Build output directory:** `site`
+- **Deploy command:** `npx wrangler deploy`
 - **Root directory:** raiz do repo
-- **Deploy command:** `npx wrangler pages deploy site`
 
-O `wrangler.toml` já declara `pages_build_output_dir = "site"`, e as Functions
-em `functions/` são detectadas automaticamente.
+O `wrangler.jsonc` carrega o resto. O Workers Builds injeta as credenciais
+sozinho — não precisa de `CLOUDFLARE_API_TOKEN` nem de `CLOUDFLARE_ACCOUNT_ID`.
 
-> **Não use `npx wrangler deploy`.** Esse é o comando de Workers: ele ignora
-> `pages_build_output_dir` e falha com *"Missing entry-point to Worker script
-> or to assets directory"*. Pages usa `wrangler pages deploy`.
+> O campo `name` do `wrangler.jsonc` precisa bater **exatamente** com o nome do
+> Worker no painel; é por ele que o deploy encontra o destino.
 
-Dois pré-requisitos desse deploy command:
+`_headers` e `_redirects` continuam valendo: Workers static assets lê os dois a
+partir do diretório de assets, e o build já os copia de `public/` para `site/`.
+Eles não se aplicam ao que o Worker responde, mas isso não afeta nada aqui —
+só `/api/*` passa pelo Worker, e essa resposta já define `Cache-Control` própria.
 
-1. O campo `name` do `wrangler.toml` precisa bater **exatamente** com o nome do
-   projeto no painel. É de lá que o wrangler descobre onde publicar.
-2. `wrangler pages deploy` faz um *direct upload*, que é um modo diferente do
-   git-integrated. Ele exige `CLOUDFLARE_API_TOKEN` (permissão *Cloudflare
-   Pages: Edit*) e `CLOUDFLARE_ACCOUNT_ID` nas variáveis de ambiente do build.
-
-Alternativa mais simples: deixar o **Deploy command vazio**. Com integração
-git, o Pages publica o output directory sozinho, sem token e sem wrangler.
+Depois de mudar o `wrangler.jsonc`, rode `npm run types` para regenerar
+`worker-configuration.d.ts`.
 
 ### Segredos do formulário
 
 Sem eles, `/api/contact` responde 503 com uma mensagem clara ao visitante —
 falha visível em vez de mensagem perdida em silêncio. Defina em
-**Settings > Environment variables** (ou `wrangler pages secret put`):
+**Settings > Variables and Secrets** (ou `wrangler secret put`):
 
 | Variável | Obrigatória | Para quê |
 |---|---|---|
@@ -80,6 +80,7 @@ falha visível em vez de mensagem perdida em silêncio. Defina em
 | `CONTACT_FROM` | sim | Remetente verificado no provedor |
 | `RESEND_API_KEY` | sim | Chave da API Resend |
 | `CONTACT_WEBHOOK` | não | URL que recebe uma cópia em JSON |
+
 
 ## Imagens
 
