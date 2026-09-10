@@ -114,6 +114,22 @@ lightbox sozinho**, sem editar código.
 
 `tools/test-lightbox.mjs` cobre esse comportamento num Chrome real.
 
+## Remoções pedidas pelo cliente
+
+Editar `site/` à mão não resolve: o próximo `npm run mirror` rebaixa a página da
+origem e o conteúdo volta. As remoções ficam na lista `REMOCOES`, em
+`tools/build.mjs`, que roda depois do mirror.
+
+Cada entrada tem um `padrao` (o trecho a remover) e um `ausente` (a marca que
+não pode sobrar na página). Depois de aplicar o padrão, o build confere a marca
+e **falha** se ela ainda estiver lá — assim, se o markup mudar na origem e o
+padrão deixar de casar, aparece um erro em vez de o conteúdo reaparecer sem
+ninguém notar.
+
+Em vigor: a foto do meio do carrossel de `/qualidade/`
+(`ESTRUTURA_JOLUMA-24-1`). O arquivo continua no mirror de propósito — a mesma
+imagem é usada em `/estrutura/`.
+
 ## Notas do clone
 
 - O crawler respeita a proteção anti-flood do host de origem: sob rajada ele

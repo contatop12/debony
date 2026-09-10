@@ -84,6 +84,50 @@ async function validateRedirects(file) {
   }
 }
 
+/**
+ * Remoções pedidas pelo cliente, aplicadas sobre o mirror.
+ *
+ * Editar `site/` à mão não adianta: o próximo `npm run mirror` rebaixa a página
+ * e a imagem volta. Por isso a regra mora aqui, no build, que roda depois.
+ *
+ * `ausente` é a trava: depois de aplicar o padrão, se a marca ainda estiver na
+ * página o build falha. Assim, se o markup mudar na origem e o padrão deixar de
+ * casar, aparece um erro — em vez de a imagem reaparecer sem ninguém notar.
+ */
+const REMOCOES = [
+  {
+    pagina: 'qualidade/index.html',
+    motivo: 'Cliente pediu a remoção da foto do meio do carrossel (2026-09-10)',
+    padrao: /\s*<div class="swiper-slide">\s*<img[^>]*ESTRUTURA_JOLUMA-24-1[^>]*>\s*<\/div>/i,
+    ausente: 'ESTRUTURA_JOLUMA-24-1',
+  },
+];
+
+async function aplicarRemocoes() {
+  for (const { pagina, motivo, padrao, ausente } of REMOCOES) {
+    const file = join(OUT_DIR, ...pagina.split('/'));
+    let html;
+    try {
+      html = await readFile(file, 'utf8');
+    } catch {
+      throw new Error(`remoção aponta para página inexistente: ${pagina}`);
+    }
+
+    const depois = html.replace(padrao, '');
+    if (depois !== html) {
+      await writeFile(file, depois);
+      console.log(`removido de ${pagina}: ${motivo}`);
+    }
+
+    if (depois.includes(ausente)) {
+      throw new Error(
+        `"${ausente}" ainda aparece em ${pagina}. ` +
+          `O markup da origem provavelmente mudou e o padrão da remoção não casa mais.`,
+      );
+    }
+  }
+}
+
 async function main() {
   // 1. TypeScript -> bundle único, sem dependências externas.
   const result = await build({
@@ -103,7 +147,10 @@ async function main() {
   await cp('public', OUT_DIR, { recursive: true });
   await validateRedirects(join(OUT_DIR, '_redirects'));
 
-  // 3. Injeta os assets próprios em cada página.
+  // 3. Remoções pedidas pelo cliente, antes de injetar os assets.
+  await aplicarRemocoes();
+
+  // 4. Injeta os assets próprios em cada página.
   const pages = (await walk(OUT_DIR)).filter((f) => f.endsWith('.html'));
   const jsFile = join(OUT_DIR, 'assets', 'js', 'app.js');
   const cssFile = join(OUT_DIR, 'assets', 'css', 'app.css');
