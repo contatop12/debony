@@ -103,6 +103,12 @@ miniatura ao fechar.
 
 Ele se ancora nos links que o próprio Elementor gera para ampliar imagem — o
 mirror renomeia `data-elementor-open-lightbox` para `data-debony-lightbox`.
+
+Os ícones de lupa são um caso à parte: o Elementor os publica como
+`href="#elementor-action...settings=<base64>"`, com a URL da imagem escondida
+dentro do base64. O mirror decodifica esse href, baixa a imagem e reescreve a
+âncora no mesmo formato dos demais gatilhos — assim o clique funciona e a URL
+vira referência de verdade, visível para o conversor de WebP e o check-links.
 Consequência prática: **certificado novo publicado no site de origem entra no
 lightbox sozinho**, sem editar código.
 

@@ -301,6 +301,27 @@ function unescapeSlashes(s) {
 }
 
 /**
+ * O ícone de lupa do Elementor não é um link comum: o href é
+ * `#elementor-action%3A...%26settings%3D<base64>`, e a URL da imagem vive
+ * dentro desse base64. Nenhuma varredura por texto a encontra, então a imagem
+ * nunca era baixada e o clique não abria nada.
+ */
+const ACTION_HASH_RE = /#elementor-action[^"'\s]*/gi;
+
+function decodeActionHash(hash) {
+  try {
+    const found = /settings=([A-Za-z0-9+/=_-]+)/.exec(decodeURIComponent(hash));
+    if (!found) return null;
+    const b64 = found[1];
+    const json = Buffer.from(b64 + '='.repeat((4 - (b64.length % 4)) % 4), 'base64').toString('utf8');
+    const settings = JSON.parse(json);
+    return typeof settings?.url === 'string' ? settings : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * O Elementor guarda JSON com entidades HTML dentro de atributos data-*.
  * Um match cru de URL engoliria `...jpg&quot;},{&quot;id&quot;:597,...`,
  * então cortamos na primeira entidade de aspas/sinal.
@@ -327,6 +348,10 @@ function extractRawUrls(text, isCss) {
       for (const part of set.split(',')) push(part.trim().split(/\s+/)[0]);
     }
     for (const m of text.matchAll(ESCAPED_URL_RE)) push(m[0]);
+    for (const m of text.matchAll(ACTION_HASH_RE)) {
+      const settings = decodeActionHash(m[0]);
+      if (settings) push(settings.url);
+    }
   }
   for (const m of text.matchAll(CSS_URL_RE)) push(m[1] ?? m[2] ?? m[3]);
   for (const m of text.matchAll(CSS_IMPORT_RE)) push(m[1] ?? m[2]);
@@ -578,15 +603,49 @@ async function writeRewritten() {
     const raw = textBodies.get(href);
     if (raw == null) continue;
     let out = rewrite(raw, href, isCss);
-    if (!isCss) out = patchHtml(out);
+    if (!isCss) out = patchHtml(out, href);
     await save(toLocalPath(new URL(href)), out);
   }
 }
 
 /** Ajustes de HTML necessários para o site rodar solto, sem WordPress. */
-function patchHtml(html) {
+const escapeAttr = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/**
+ * Converte o ícone de lupa do Elementor num link comum apontando para o arquivo
+ * local, no mesmo formato dos demais gatilhos do lightbox.
+ *
+ * Ganho além de fazer o clique funcionar: a URL sai do base64 e vira uma
+ * referência de verdade, que o conversor de WebP e o check-links enxergam.
+ */
+function linkLightboxIcons(html, pageHref) {
+  const fromLocal = toLocalPath(new URL(pageHref));
+
+  return html.replace(
+    /<a\b([^>]*?)href="(#elementor-action[^"]*)"([^>]*)>/gi,
+    (all, pre, hash, post) => {
+      const settings = decodeActionHash(hash);
+      if (!settings) return all;
+
+      const target = normalize(settings.url, pageHref);
+      if (!target) return all;
+
+      const canonical = stripQuery(target);
+      // Se a imagem não veio, manter o href original é melhor que apontar para
+      // um arquivo inexistente.
+      if (!downloadedAssets.has(canonical)) return all;
+
+      const rel = relativeFrom(fromLocal, toLocalPath(new URL(canonical)));
+      const title = escapeAttr(settings.title ?? '');
+      return `<a${pre}href="${rel}" data-debony-lightbox="yes" data-debony-lightbox-title="${title}"${post}>`;
+    },
+  );
+}
+
+function patchHtml(html, pageHref) {
   return (
-    html
+    linkLightboxIcons(html, pageHref)
       // WP emite links de API/edição que não existem no mirror.
       .replace(/<link[^>]+rel=["'](?:https:\/\/api\.w\.org\/|EditURI|alternate|shortlink|pingback)["'][^>]*>\s*/gi, '')
       .replace(/<link[^>]+rel=["']alternate["'][^>]*type=["']application\/json["'][^>]*>\s*/gi, '')

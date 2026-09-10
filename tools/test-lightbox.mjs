@@ -46,7 +46,8 @@ const waitImageLoaded = () =>
   );
 
 const triggers = await page.$$('a[data-debony-lightbox="yes"]');
-check('6 certificados com gatilho de lightbox', triggers.length === 6, `${triggers.length} encontrados`);
+const TOTAL = triggers.length;
+check('há gatilhos de lightbox na página', TOTAL >= 6, `${TOTAL} encontrados`);
 
 // --- abrir ---------------------------------------------------------------
 await triggers[0].click();
@@ -83,7 +84,7 @@ check('"X" no canto superior direito', opened.fecharTopo < 40 && opened.fecharDi
   `topo ${Math.round(opened.fecharTopo)}px, direita ${Math.round(opened.fecharDireita)}px`);
 check('rolagem da página travada', opened.scrollTravado);
 check('foco vai para o botão fechar', opened.focoNoFechar);
-check('contador mostra 1 / 6', opened.contador.trim() === '1 / 6', opened.contador);
+check(`contador mostra 1 / ${TOTAL}`, opened.contador.trim() === `1 / ${TOTAL}`, opened.contador);
 
 // --- navegar -------------------------------------------------------------
 await page.click('.debony-lightbox__nav--next');
@@ -91,14 +92,14 @@ const depoisProximo = await page.evaluate(() => ({
   contador: document.querySelector('.debony-lightbox__counter').textContent.trim(),
   src: document.querySelector('.debony-lightbox__image').getAttribute('src'),
 }));
-check('seta avança para o 2 / 6', depoisProximo.contador === '2 / 6', depoisProximo.contador);
+check(`seta avança para o 2 / ${TOTAL}`, depoisProximo.contador === `2 / ${TOTAL}`, depoisProximo.contador);
 check('imagem muda ao navegar', depoisProximo.src !== opened.src);
 
 await page.keyboard.press('ArrowLeft');
 const depoisEsquerda = await page.evaluate(() =>
   document.querySelector('.debony-lightbox__counter').textContent.trim(),
 );
-check('seta do teclado volta para 1 / 6', depoisEsquerda === '1 / 6', depoisEsquerda);
+check(`seta do teclado volta para 1 / ${TOTAL}`, depoisEsquerda === `1 / ${TOTAL}`, depoisEsquerda);
 
 // --- fechar pelo X -------------------------------------------------------
 await page.click('.debony-lightbox__close');
@@ -130,6 +131,32 @@ await page.mouse.click(12, 450); // fundo, longe da figura
 check('clique no fundo fecha', await page.evaluate(
   () => getComputedStyle(document.querySelector('.debony-lightbox')).display === 'none',
 ));
+
+// --- ícone de lupa --------------------------------------------------------
+// Cobertura própria: o href da lupa vinha do Elementor como base64 dentro de
+// `#elementor-action`, e clicar não abria nada. Os cliques acima usam links de
+// imagem e não pegariam essa regressão.
+const lupas = await page.$$('a.elementor-icon[data-debony-lightbox="yes"]');
+check('ícones de lupa viraram gatilho', lupas.length > 0, `${lupas.length} encontrados`);
+
+if (lupas.length > 0) {
+  await lupas[0].click();
+  await page.waitForSelector('.debony-lightbox.is-open', { visible: true, timeout: 5000 });
+  await waitImageLoaded();
+
+  const pelaLupa = await page.evaluate(() => {
+    const img = document.querySelector('.debony-lightbox__image');
+    return {
+      src: img.getAttribute('src'),
+      carregou: img.complete && img.naturalWidth > 0,
+      largura: Math.round(img.getBoundingClientRect().width),
+    };
+  });
+  check('lupa abre e carrega a imagem', pelaLupa.carregou && pelaLupa.largura > 200,
+    `${pelaLupa.src?.split('/').pop()} (${pelaLupa.largura}px)`);
+
+  await page.keyboard.press('Escape');
+}
 
 // --- higiene da página ---------------------------------------------------
 const relevantes = [
