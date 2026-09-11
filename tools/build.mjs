@@ -1,6 +1,6 @@
 /**
- * Build do deploy: compila o TypeScript, copia os arquivos de configuração do
- * Cloudflare Pages e injeta os assets próprios nas páginas do mirror.
+ * Build do deploy: compila o TypeScript, copia os assets próprios e aplica as
+ * customizações nas páginas do mirror. Rotas e cabeçalhos vivem no vercel.json.
  *
  * Uso: node tools/build.mjs [--out site]
  */
@@ -34,53 +34,56 @@ function relFromPage(pageFile, assetFile) {
 }
 
 /**
- * Workers static assets recusa código fora desta lista, e a recusa só aparece
- * na validação server-side do deploy — depois de subir todos os assets. Melhor
- * quebrar o build aqui. (O Pages aceitava 410; o Workers não.)
+ * Um vercel.json malformado só reprova no build da Vercel, depois do push.
+ * Conferir aqui troca esse ciclo por um erro imediato.
  */
-const STATUS_PERMITIDOS = new Set([200, 301, 302, 303, 307, 308]);
-const MAX_REDIRECTS = 2100;
-
-async function validateRedirects(file) {
+async function validateVercelConfig(file) {
   let texto;
   try {
     texto = await readFile(file, 'utf8');
   } catch {
-    return; // sem _redirects não há o que validar
+    throw new Error('vercel.json não encontrado na raiz do projeto');
+  }
+
+  let cfg;
+  try {
+    cfg = JSON.parse(texto);
+  } catch (err) {
+    throw new Error(`vercel.json não é JSON válido: ${err.message}`);
   }
 
   const problemas = [];
-  let regras = 0;
 
-  texto.split(/\r?\n/).forEach((linha, i) => {
-    const limpa = linha.trim();
-    if (!limpa || limpa.startsWith('#')) return;
-    regras++;
+  if (cfg.outputDirectory !== 'site') {
+    problemas.push(`outputDirectory deveria ser "site", está "${cfg.outputDirectory}"`);
+  }
 
-    const partes = limpa.split(/\s+/);
-    if (partes.length < 2) {
-      problemas.push(`linha ${i + 1}: faltam origem e destino -> "${limpa}"`);
-      return;
+  for (const [i, r] of (cfg.redirects ?? []).entries()) {
+    if (!r?.source || !r?.destination) {
+      problemas.push(`redirects[${i}]: precisa de "source" e "destination"`);
     }
-    if (partes.length < 3) return; // sem código: o padrão (302) é válido
-
-    const status = Number(partes[2]);
-    if (!STATUS_PERMITIDOS.has(status)) {
-      problemas.push(
-        `linha ${i + 1}: status ${partes[2]} não é aceito ` +
-          `(use ${[...STATUS_PERMITIDOS].join(', ')}) -> "${limpa}"`,
-      );
+    if (r?.permanent === undefined && r?.statusCode === undefined) {
+      problemas.push(`redirects[${i}]: defina "permanent" ou "statusCode"`);
     }
-  });
+  }
 
-  if (regras > MAX_REDIRECTS) {
-    problemas.push(`${regras} regras excedem o limite de ${MAX_REDIRECTS}`);
+  for (const [i, h] of (cfg.headers ?? []).entries()) {
+    if (!h?.source) problemas.push(`headers[${i}]: precisa de "source"`);
+    if (!Array.isArray(h?.headers) || h.headers.length === 0) {
+      problemas.push(`headers[${i}]: "headers" precisa ser uma lista não vazia`);
+      continue;
+    }
+    for (const [j, kv] of h.headers.entries()) {
+      if (!kv?.key || kv?.value === undefined) {
+        problemas.push(`headers[${i}].headers[${j}]: precisa de "key" e "value"`);
+      }
+    }
   }
 
   if (problemas.length) {
-    console.error(`\n_redirects inválido:`);
+    console.error('\nvercel.json inválido:');
     for (const p of problemas) console.error(`  ${p}`);
-    throw new Error('_redirects seria recusado no deploy');
+    throw new Error('vercel.json seria recusado no deploy');
   }
 }
 
@@ -143,9 +146,9 @@ async function main() {
   });
   const bundleBytes = Object.values(result.metafile.outputs).reduce((n, o) => n + o.bytes, 0);
 
-  // 2. _headers, _redirects e CSS próprio para a raiz do output.
+  // 2. CSS próprio para a raiz do output; rotas e cabeçalhos vêm do vercel.json.
   await cp('public', OUT_DIR, { recursive: true });
-  await validateRedirects(join(OUT_DIR, '_redirects'));
+  await validateVercelConfig('vercel.json');
 
   // 3. Remoções pedidas pelo cliente, antes de injetar os assets.
   await aplicarRemocoes();

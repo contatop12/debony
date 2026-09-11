@@ -1,9 +1,9 @@
 # Debony — clone estático
 
-Clone fiel de `debonyusinagem.com.br` (WordPress + Elementor) para deploy no
-Cloudflare Workers com static assets. O HTML, o CSS e as imagens são os do site original, com todas
-as URLs reescritas para caminhos relativos. O que era backend PHP foi
-substituído por TypeScript: um bundle no cliente e uma Pages Function.
+Clone fiel de `debonyusinagem.com.br` (WordPress + Elementor) para deploy na
+Vercel. O HTML, o CSS e as imagens são os do site original, com todas as URLs
+reescritas para caminhos relativos. O que era backend PHP foi substituído por
+TypeScript: um bundle no cliente e uma Vercel Function.
 
 ## Estrutura
 
@@ -11,9 +11,9 @@ substituído por TypeScript: um bundle no cliente e uma Pages Function.
 |---|---|
 | `site/` | Output do deploy (gerado — não editar à mão) |
 | `src/` | TypeScript do cliente, compilado para `site/assets/js/app.js` |
-| `worker/index.ts` | Worker: serve os assets e responde `/api/contact` |
-| `public/` | `_headers`, `_redirects` e CSS próprio, copiados para `site/` no build |
-| `wrangler.jsonc` | Config do Worker (nome, assets, roteamento) |
+| `api/contact.ts` | Vercel Function que recebe o formulário de contato |
+| `public/` | CSS próprio, copiado para `site/` no build |
+| `vercel.json` | Build, output, cabeçalhos e redirects |
 | `tools/` | Crawler do mirror, conversor de imagens, build e verificadores |
 
 ## Comandos
@@ -24,10 +24,11 @@ npm install
 npm run mirror     # rebaixa o site de origem para site/ (resume o que já existe)
 npm run optimize   # converte PNG/JPEG para WebP e reescreve as referências
 npm run build      # compila o TS, copia public/ e injeta os assets nas páginas
-npm run verify     # typecheck + confere se toda referência relativa existe
+npm test           # exercita api/contact.ts sem depender da Vercel
+npm run verify     # typecheck + referências + npm test
 npm run release    # mirror + optimize + build + verify, na ordem
-npm run dev        # wrangler pages dev site
-npm run deploy     # wrangler pages deploy site --project-name debony
+npm run dev        # vercel dev
+npm run deploy     # vercel --prod
 ```
 
 Ordem importa: `mirror` reescreve os HTML do zero, então `optimize` e `build`
@@ -42,42 +43,40 @@ node tools/test-lightbox.mjs http://127.0.0.1:8905/certificados/
 node tools/scan-404.mjs      http://127.0.0.1:8905
 ```
 
-## Deploy no Cloudflare Workers
+## Deploy na Vercel
 
-O projeto é um **Worker com static assets**, não um projeto Pages. O binding
-`ASSETS` serve `site/`, e `run_worker_first: ["/api/*"]` faz só a API entrar no
-código do Worker — o resto é servido direto pelo Asset Worker.
+Projeto **sem framework**: `site/` é servido como estático e `api/` vira função.
+O `vercel.json` declara tudo o que o deploy precisa:
 
-Configuração no painel (Workers Builds):
+- `buildCommand`: `npm run build`
+- `outputDirectory`: `site`
+- `headers`: segurança em tudo, e cache imutável em `/wp-content`,
+  `/wp-includes` e `/assets`
+- `redirects`: as rotas do WordPress que não existem mais
 
-- **Build command:** `npm run build`
-- **Deploy command:** `npx wrangler deploy`
-- **Root directory:** raiz do repo
+No painel basta importar o repositório — **Framework Preset: Other**. Não é
+preciso configurar build nem output à mão, porque o `vercel.json` já os define.
 
-O `wrangler.jsonc` carrega o resto. O Workers Builds injeta as credenciais
-sozinho — não precisa de `CLOUDFLARE_API_TOKEN` nem de `CLOUDFLARE_ACCOUNT_ID`.
+`npm run build` valida o `vercel.json` antes de qualquer coisa. Sem isso, um
+erro de forma só apareceria no build da Vercel, depois do push.
 
-> O campo `name` do `wrangler.jsonc` precisa bater **exatamente** com o nome do
-> Worker no painel; é por ele que o deploy encontra o destino.
+### Detalhes de roteamento
 
-Uma diferença em relação ao Pages: `_redirects` só aceita os status **200,
-301, 302, 303, 307 e 308**. O `410 Gone` que o Pages aceitava é recusado na
-validação do deploy — e ela roda no servidor, *depois* de subir todos os
-assets. Por isso `npm run build` valida o arquivo antes, e falha localmente.
+`cleanUrls` e `trailingSlash` ficam **desligados de propósito**. Os links entre
+páginas apontam para `index.html` explicitamente (`../sobre-nos/index.html`),
+então ativar qualquer um dos dois criaria uma cadeia de 308 em cada navegação.
+Com ambos desligados, `/sobre-nos`, `/sobre-nos/` e `/sobre-nos/index.html`
+servem a mesma página sem redirecionar.
 
-`_headers` e `_redirects` continuam valendo: Workers static assets lê os dois a
-partir do diretório de assets, e o build já os copia de `public/` para `site/`.
-Eles não se aplicam ao que o Worker responde, mas isso não afeta nada aqui —
-só `/api/*` passa pelo Worker, e essa resposta já define `Cache-Control` própria.
+Os redirects usam `permanent: true`, que na Vercel é **308** — e não o 301 que
+o `_redirects` do Cloudflare produzia. Para um GET o efeito é o mesmo, e o 308
+preserva o método.
 
-Depois de mudar o `wrangler.jsonc`, rode `npm run types` para regenerar
-`worker-configuration.d.ts`.
+### Variáveis de ambiente
 
-### Segredos do formulário
-
-Sem eles, `/api/contact` responde 503 com uma mensagem clara ao visitante —
+Sem elas, `/api/contact` responde 503 com uma mensagem clara ao visitante —
 falha visível em vez de mensagem perdida em silêncio. Defina em
-**Settings > Variables and Secrets** (ou `wrangler secret put`):
+**Project Settings > Environment Variables**:
 
 | Variável | Obrigatória | Para quê |
 |---|---|---|
@@ -137,8 +136,10 @@ imagem é usada em `/estrutura/`.
   como erro recuperável e as requisições saem espaçadas (`--interval`).
 - jQuery, Elementor e demais scripts do WordPress foram mantidos, por isso o
   visual é idêntico ao original.
-- Rotas de backend (`/wp-admin`, `/wp-json`, `/xmlrpc.php`, feeds) são
-  redirecionadas ou respondem 410 via `_redirects`.
+- Rotas de backend (`/wp-admin`, `/wp-login.php`, feeds) são redirecionadas
+  para a home pelos `redirects` do `vercel.json`. `/wp-json` e `/xmlrpc.php`
+  ficam de fora de propósito: não mudaram de lugar, simplesmente não existem,
+  e caem no 404 natural.
 - O formulário de comentários do post `2023/11/25/ola-mundo/` está desativado:
   não há backend para recebê-lo.
 - O frontend do Elementor carrega um bundle por tipo de widget da página, com o

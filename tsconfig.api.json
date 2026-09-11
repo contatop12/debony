@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],
-    "types": []
+    "types": ["node"]
   },
-  "include": ["worker/**/*.ts", "worker-configuration.d.ts"]
+  "include": ["api/**/*.ts"]
 }
