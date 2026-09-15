@@ -272,21 +272,10 @@
     font-size: 16px;
     font-weight: 500;
     line-height: 1.2;
-    color: var(--e-global-color-accent);
     padding: 12px 14px;
     white-space: nowrap;
   }
-
-  .elementor [data-debony="menu-horizontal"] .elementor-item:hover,
-  .elementor [data-debony="menu-horizontal"] .elementor-item:focus-visible,
-  .elementor [data-debony="menu-horizontal"] .elementor-item.elementor-item-active {
-    color: var(--e-global-color-primary);
-  }
-
-  /* Sublinhado do ponteiro na cor da marca, e não no cinza padrão do Elementor. */
-  .elementor [data-debony="menu-horizontal"] .elementor-item::after {
-    background-color: var(--e-global-color-primary);
-  }
+  /* Cor do texto e do sublinhado: ver "Cabeçalho fixo" no fim deste arquivo. */
 
   /* Caret do submenu "Sobre nós" acompanha a cor do texto. */
   .elementor [data-debony="menu-horizontal"] .sub-arrow svg {
@@ -377,4 +366,106 @@
   .elementor [data-debony="menu-horizontal"] .elementor-nav-menu a.elementor-item {
     padding: 10px 6px;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Cabeçalho fixo: fundo e contraste com a seção que está por trás
+   --------------------------------------------------------------------------- */
+
+/*
+ * data-contraste="claro" | "escuro" vem de src/header-contrast.ts, que mede o
+ * que está pintado atrás do cabeçalho. Sem o atributo (antes do JS rodar) vale o
+ * claro. Cores permitidas: preto sobre fundo claro, branco sobre fundo escuro; o
+ * botão, sobre fundo claro, segue azul.
+ *
+ * Os seletores começam pelo container do cabeçalho de propósito: a especificidade
+ * precisa passar a do Elementor, inclusive nos estados de hover — botão (0,5,0),
+ * ícone do hambúrguer (0,4,2).
+ */
+.elementor .elementor-element.elementor-element-2f0ffc7 {
+  --padding-top: 10px;
+  --padding-bottom: 10px;
+  background-color: rgba(255, 255, 255, 0.88);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  backdrop-filter: saturate(160%) blur(12px);
+  transition: background-color 0.25s ease;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] {
+  background-color: rgba(10, 12, 18, 0.6);
+}
+
+/*
+ * O script original põe .sticky no primeiro <header> da página — o invólucro
+ * externo, e não o cabeçalho fixo. O fundo nunca aparecia, e o padding dava 24px
+ * de altura ao invólucro, empurrando a página inteira ao passar de 110px de
+ * rolagem. O fundo agora é do próprio cabeçalho fixo.
+ */
+header.elementor.elementor-22.sticky {
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Menu horizontal: texto e sublinhado sempre na mesma cor, em qualquer estado. */
+.elementor .elementor-element.elementor-element-2f0ffc7 [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item,
+.elementor .elementor-element.elementor-element-2f0ffc7 [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item:hover,
+.elementor .elementor-element.elementor-element-2f0ffc7 [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item:focus-visible {
+  color: #1c1c1c;
+  transition: color 0.25s ease;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item,
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item:hover,
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item:focus-visible {
+  color: #fff;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7 [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item::before,
+.elementor .elementor-element.elementor-element-2f0ffc7 [data-debony='menu-horizontal'] .elementor-nav-menu a.elementor-item::after {
+  background-color: currentColor;
+}
+
+/* Submenu "Sobre nós" continua azul com texto branco nos dois modos. */
+
+/* Logo: a versão azul some sobre fundo escuro; lá ela vira branca. */
+.elementor .elementor-element.elementor-element-2f0ffc7 .elementor-element-9c44feb img {
+  transition: filter 0.25s ease;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element-9c44feb img {
+  filter: brightness(0) invert(1);
+}
+
+/* Botão "Entre em contato": azul (padrão do Elementor) no claro; branco no escuro. */
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element.elementor-element-2f8444d .elementor-button {
+  color: #fff;
+  fill: #fff;
+  border-color: #fff;
+  background-color: transparent;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element.elementor-element-2f8444d .elementor-button:hover,
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element.elementor-element-2f8444d .elementor-button:focus-visible {
+  color: #1c1c1c;
+  fill: #1c1c1c;
+  border-color: #fff;
+  background-color: #fff;
+}
+
+/* Hambúrguer (até 1024px): sem o quadrado branco, ícone preto ou branco. */
+.elementor .elementor-element.elementor-element-2f0ffc7 .elementor-element.elementor-element-265527d div.elementor-menu-toggle {
+  color: #1c1c1c;
+  background-color: transparent;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7 .elementor-element.elementor-element-265527d div.elementor-menu-toggle svg {
+  fill: #1c1c1c;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element.elementor-element-265527d div.elementor-menu-toggle {
+  color: #fff;
+}
+
+.elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element.elementor-element-265527d div.elementor-menu-toggle svg {
+  fill: #fff;
 }

@@ -43,6 +43,7 @@ apontando para `site/`):
 ```bash
 node tools/test-lightbox.mjs http://127.0.0.1:8905/certificados/
 node tools/test-menu.mjs     http://127.0.0.1:8905
+node tools/test-cabecalho.mjs http://127.0.0.1:8905
 node tools/scan-404.mjs      http://127.0.0.1:8905
 ```
 
@@ -156,6 +157,38 @@ Consequência prática: **certificado novo publicado no site de origem entra no
 lightbox sozinho**, sem editar código.
 
 `tools/test-lightbox.mjs` cobre esse comportamento num Chrome real.
+
+## Cabeçalho: fundo e contraste com a seção
+
+O cabeçalho fixo tem fundo translúcido, e texto do menu, logo, botão e ícone do
+hambúrguer alternam conforme o que está atrás dele:
+
+| | Fundo claro | Fundo escuro |
+|---|---|---|
+| Fundo do cabeçalho | branco 88% | escuro 60% |
+| Texto e sublinhado do menu | preto | branco |
+| Logo | azul | branca |
+| Botão "Entre em contato" | azul (hover: fundo azul) | branco (hover: fundo branco, texto preto) |
+
+**Como decide** (`src/header-contrast.ts`): amostra 6 pontos ao longo da largura
+do cabeçalho e, em cada um, pega a camada visível de trás — cor de fundo, imagem
+de fundo, slideshow, vídeo ou mídia — atravessando overlays translúcidos. Fotos
+têm a luminosidade medida nos pixels da faixa que fica atrás do cabeçalho. A
+média é comparada a 0,179, a luminância em que texto branco e preto dão o mesmo
+contraste pela fórmula do WCAG, com uma pequena histerese para não piscar.
+
+Vídeo cujo quadro não dá para ler — o de `/qualidade/` é YouTube, em iframe de
+outro domínio — é tratado como escuro. Camadas de fundo do Elementor são
+procuradas também dentro de `.e-con-inner`, onde ficam nos containers "boxed".
+
+Para diagnosticar no DevTools, o cabeçalho expõe `data-contraste`,
+`data-luminancia` (média) e `data-pontos` (cada ponto).
+
+O fundo substitui o `.sticky` do script original, que ia para o `<header>`
+externo e não para o fixo: o fundo nunca aparecia, e o padding empurrava a
+página inteira 24px ao passar de 110px de rolagem. `tools/test-cabecalho.mjs`
+cobre os tipos de fundo do site, as cores, o contraste real do texto (≥ 4,5:1) e
+a ausência desse salto.
 
 ## Customizações pedidas pelo cliente
 
