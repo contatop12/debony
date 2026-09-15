@@ -7,9 +7,10 @@
 
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
 
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 
 const args = process.argv.slice(2);
 const outIndex = args.indexOf('--out');
@@ -89,19 +90,36 @@ async function validateVercelConfig(file) {
 }
 
 /** Versão curta pelo conteúdo, para furar o cache imutável de /assets quando o arquivo muda. */
-async function versao(caminhoEmPublic) {
-  const conteudo = await readFile(join('public', ...caminhoEmPublic.split('/')));
+function versao(caminhoEmPublic) {
+  const conteudo = readFileSync(join('public', ...caminhoEmPublic.split('/')));
   return createHash('sha256').update(conteudo).digest('hex').slice(0, 8);
+}
+
+/** Troca só os atributos pedidos numa tag, preservando o resto (class, width, fetchpriority...). */
+function comAtributos(tag, atributos) {
+  let saida = tag;
+  for (const [nome, valor] of Object.entries(atributos)) {
+    // Barra dupla obrigatória: em qualquer string JS (aspas ou crase) "\s" vira só
+    // "s". O regex deixaria de casar e o atributo novo seria acrescentado ao lado do
+    // antigo, duplicando src/srcset na tag.
+    const re = new RegExp('\\s' + nome + '="[^"]*"', 'i');
+    const novo = valor === null ? '' : ` ${nome}="${valor}"`;
+    saida = re.test(saida) ? saida.replace(re, novo) : saida.replace(/\s*\/?>$/, `${novo}$&`);
+  }
+  return saida;
 }
 
 /**
  * Customizações pedidas pelo cliente, aplicadas sobre o mirror.
  *
- * Editar `site/` à mão não adianta: o próximo `npm run mirror` rebaixa a página
+ * Editar `site/` à mão não adianta: o próximo `npm run mirror` rebaixa as páginas
  * e o conteúdo original volta. Por isso as regras moram aqui, no build.
  *
- * Cada entrada troca `padrao` por `substituto` (vazio = remoção). `substituto`
- * pode ser uma função, que recebe `versao()` para montar URLs com cache-busting.
+ * Cada entrada troca `padrao` por `substituto` (vazio = remoção) nas `paginas`
+ * listadas, ou em todas com '*'. `substituto` pode ser uma função, chamada a cada
+ * ocorrência com a tag encontrada e com `rel()` — que devolve o caminho relativo
+ * até um arquivo de `site/` a partir da página atual, já que as páginas ficam em
+ * profundidades diferentes.
  *
  * `ausente` é a trava: depois de aplicar o padrão, se a marca ainda estiver na
  * página o build falha. Assim, se o markup mudar na origem e o padrão deixar de
@@ -110,58 +128,98 @@ async function versao(caminhoEmPublic) {
  */
 const CUSTOMIZACOES = [
   {
-    pagina: 'qualidade/index.html',
+    paginas: ['qualidade/index.html'],
     motivo: 'Cliente pediu a remoção da foto do meio do carrossel (2026-09-10)',
     padrao: /\s*<div class="swiper-slide">\s*<img[^>]*ESTRUTURA_JOLUMA-24-1[^>]*>\s*<\/div>/i,
     ausente: 'ESTRUTURA_JOLUMA-24-1',
   },
   {
-    pagina: 'index.html',
+    paginas: ['index.html'],
     motivo: 'Mapa estático de "Nossos produtos percorrem o mundo" trocado pelo GIF animado (2026-09-15)',
     // Casa também o <picture> que este build gerou antes: assim um GIF novo
     // em public/ troca o ?v= mesmo quando a página já foi customizada.
     padrao:
       /<img\b[^>]*Group-41-1\.svg[^>]*>|<picture data-debony="mapa-envios">[\s\S]*?<\/picture>/i,
     ausente: 'Group-41-1.svg',
-    substituto: async ({ versao }) => {
+    substituto: (_tag, { rel }) => {
       const gif = 'assets/img/animacao-envios-brasil.gif';
       const estatico = 'assets/img/animacao-envios-brasil-estatico.webp';
       return (
         '<picture data-debony="mapa-envios">' +
         // Animação em loop contínuo: quem pede menos movimento recebe um quadro parado.
-        `<source media="(prefers-reduced-motion: reduce)" srcset="./${estatico}?v=${await versao(estatico)}" type="image/webp">` +
+        `<source media="(prefers-reduced-motion: reduce)" srcset="${rel(estatico)}?v=${versao(estatico)}" type="image/webp">` +
         `<img loading="lazy" decoding="async" width="1045" height="636" ` +
-        `src="./${gif}?v=${await versao(gif)}" class="attachment-large size-large" ` +
+        `src="${rel(gif)}?v=${versao(gif)}" class="attachment-large size-large" ` +
         `alt="Mapa com envios a partir do Brasil para as Américas, Europa, África e Ásia">` +
         '</picture>'
       );
     },
   },
+  {
+    paginas: '*',
+    motivo: 'Logo Debony | Joluma trocada pela versão com fundo transparente (2026-09-16)',
+    // Cabeçalho e rodapé. Casa também a tag já customizada, para atualizar o ?v=.
+    padrao: /<img\b[^>]*(?:FAV-ICON-e1718635038380|data-debony="logo")[^>]*>/gi,
+    ausente: 'FAV-ICON-e1718635038380',
+    substituto: (tag, { rel }) => {
+      const arquivo = (largura) => {
+        const caminho = `assets/img/logo-debony-joluma-${largura}.webp`;
+        return `${rel(caminho)}?v=${versao(caminho)}`;
+      };
+      // Só a imagem muda: width, height, class e fetchpriority da tag original
+      // ficam, então o layout e a prioridade de carregamento do cabeçalho são mantidos.
+      return comAtributos(tag, {
+        src: arquivo(511),
+        srcset: [200, 300, 511, 1079].map((w) => `${arquivo(w)} ${w}w`).join(', '),
+        sizes: '(max-width: 511px) 100vw, 511px',
+        alt: 'Debony e Joluma - Usinagem de precisão',
+        'data-debony': 'logo',
+      });
+    },
+  },
 ];
 
 async function aplicarCustomizacoes() {
-  for (const { pagina, motivo, padrao, ausente, substituto } of CUSTOMIZACOES) {
-    const file = join(OUT_DIR, ...pagina.split('/'));
-    let html;
-    try {
-      html = await readFile(file, 'utf8');
-    } catch {
-      throw new Error(`customização aponta para página inexistente: ${pagina}`);
-    }
+  const todas = (await walk(OUT_DIR))
+    .filter((f) => f.endsWith('.html'))
+    .map((f) => relative(OUT_DIR, f).split(sep).join('/'));
 
-    const novo = typeof substituto === 'function' ? await substituto({ versao }) : (substituto ?? '');
-    const depois = html.replace(padrao, () => novo);
-    if (depois !== html) {
-      await writeFile(file, depois);
-      console.log(`${pagina}: ${motivo}`);
-    }
+  for (const { paginas, motivo, padrao, ausente, substituto } of CUSTOMIZACOES) {
+    const alvo = paginas === '*' ? todas : paginas;
+    let alteradas = 0;
 
-    if (depois.includes(ausente)) {
-      throw new Error(
-        `"${ausente}" ainda aparece em ${pagina}. ` +
-          `O markup da origem provavelmente mudou e o padrão da customização não casa mais.`,
+    for (const pagina of alvo) {
+      const file = join(OUT_DIR, ...pagina.split('/'));
+      let html;
+      try {
+        html = await readFile(file, 'utf8');
+      } catch {
+        throw new Error(`customização aponta para página inexistente: ${pagina}`);
+      }
+
+      const pastaDaPagina = posix.dirname(pagina);
+      const rel = (caminhoEmSite) => {
+        const r = posix.relative(pastaDaPagina, caminhoEmSite);
+        return r.startsWith('.') ? r : `./${r}`;
+      };
+
+      const depois = html.replace(padrao, (tag) =>
+        typeof substituto === 'function' ? substituto(tag, { rel }) : (substituto ?? ''),
       );
+      if (depois !== html) {
+        await writeFile(file, depois);
+        alteradas++;
+      }
+
+      if (depois.includes(ausente)) {
+        throw new Error(
+          `"${ausente}" ainda aparece em ${pagina}. ` +
+            `O markup da origem provavelmente mudou e o padrão da customização não casa mais.`,
+        );
+      }
     }
+
+    if (alteradas) console.log(`${motivo} — ${alteradas} página(s)`);
   }
 }
 

@@ -26,6 +26,7 @@ npm run optimize   # converte PNG/JPEG para WebP e reescreve as referências
 npm run build      # compila o TS, copia public/ e injeta os assets nas páginas
 npm test           # exercita api/contact.ts sem depender da Vercel
 npm run test:e2e   # formulário + UTMs num Chrome real, com webhook stub local
+npm run logo       # regenera as versões WebP da logo a partir do PNG
 npm run verify     # typecheck + referências + npm test
 npm run release    # mirror + optimize + build + verify, na ordem
 npm run dev        # vercel dev
@@ -182,6 +183,16 @@ Em vigor:
     (`animacao-envios-brasil-estatico.webp`, 19 KB) em vez da animação em loop.
   - As URLs levam `?v=<hash do conteúdo>`, porque `/assets` tem cache imutável:
     trocar o GIF em `public/` e rodar o build já fura o cache.
+- **Todas as páginas, cabeçalho e rodapé** — a logo Debony | Joluma foi trocada
+  pela versão com fundo transparente, `public/assets/img/logo-debony-joluma.png`.
+  - O PNG é a fonte. `npm run logo` gera dele os WebP de 200, 300, 511 e 1079 px
+    (com transparência) usados no `srcset`. Os WebP são versionados, e não
+    gerados no build da Vercel, para o deploy não depender do binário nativo do
+    `sharp` no CI.
+  - A regra usa `paginas: '*'` e só troca `src`, `srcset`, `sizes` e `alt` da tag
+    original. `width`, `height`, `class` e `fetchpriority` ficam como estavam,
+    então layout e prioridade de carregamento do cabeçalho não mudam.
+  - Para trocar a logo no futuro: substitua o PNG, rode `npm run logo` e o build.
 
 
 ## Notas do clone

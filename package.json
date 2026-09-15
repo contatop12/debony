@@ -15,7 +15,8 @@
     "dev": "vercel dev",
     "deploy": "vercel --prod",
     "test": "node tools/test-contact.mjs",
-    "test:e2e": "node tools/test-form-e2e.mjs"
+    "test:e2e": "node tools/test-form-e2e.mjs",
+    "logo": "node tools/gerar-logo.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
