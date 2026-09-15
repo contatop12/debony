@@ -177,14 +177,77 @@ const CUSTOMIZACOES = [
       });
     },
   },
+  {
+    paginas: '*',
+    motivo: 'Menu do cabeçalho horizontal no computador; hambúrguer só em telas menores (2026-09-16)',
+    // Do widget do menu até o fim da <nav> vertical. Fica fora da regex o que vem
+    // depois, então a <nav> horizontal gerada antes é recriada a cada build.
+    padrao:
+      /<div class="[^"]*elementor-element-265527d[^"]*"[^>]*>[\s\S]*?<nav class="elementor-nav-menu--dropdown[^"]*"[^>]*>[\s\S]*?<\/nav>/,
+    presente: 'data-debony="menu-horizontal"',
+    substituto: (bloco) => montarMenuHorizontal(bloco),
+  },
 ];
+
+/**
+ * Até qual breakpoint do Elementor o menu fica no hambúrguer. Acima dele, horizontal.
+ * 'tablet' = hambúrguer até 1024px. Ver a nota no README sobre a escolha.
+ */
+const MENU_HAMBURGUER_ATE = 'tablet';
+
+/**
+ * O widget de menu estava com layout "dropdown": o Elementor gera só a lista
+ * vertical com o botão, em qualquer tela. O layout horizontal usa uma segunda
+ * <nav class="elementor-nav-menu--main">, que o CSS e o JS do Elementor já
+ * presentes no mirror sabem exibir, alternar por breakpoint e animar.
+ *
+ * A lista é copiada da <nav> vertical da própria página, e não escrita aqui: os
+ * links são relativos e mudam com a profundidade de cada página, e um item novo
+ * no menu da origem entra nas duas versões sozinho.
+ */
+function montarMenuHorizontal(bloco) {
+  const semAnterior = bloco.replace(/<nav data-debony="menu-horizontal"[\s\S]*?<\/nav>/, '');
+
+  // Tag do widget: classe de breakpoint e layout horizontal, lido pelo handler JS.
+  const comWidget = semAnterior.replace(/^<div\b[^>]*>/, (abertura) =>
+    abertura
+      // Trabalha na lista de classes, e não no texto: depois do primeiro build a
+      // classe fica logo após class=" (sem espaço antes), e um regex que exigisse
+      // espaço não a removeria — cada build acrescentaria mais uma cópia.
+      .replace(/class="([^"]*)"/, (_m, classes) => {
+        const resto = classes.split(/\s+/).filter((c) => c && !c.startsWith('elementor-nav-menu--dropdown-'));
+        return `class="${[`elementor-nav-menu--dropdown-${MENU_HAMBURGUER_ATE}`, ...resto].join(' ')}"`;
+      })
+      // data-settings é JSON escapado com entidades HTML.
+      .replace('&quot;layout&quot;:&quot;dropdown&quot;', '&quot;layout&quot;:&quot;horizontal&quot;'),
+  );
+
+  const lista = /<nav class="elementor-nav-menu--dropdown[^"]*"[^>]*>\s*(<ul\b[\s\S]*<\/ul>)\s*<\/nav>/.exec(comWidget)?.[1];
+  if (!lista) throw new Error('menu horizontal: lista de itens não encontrada na <nav> vertical');
+
+  const listaHorizontal = lista
+    // Ids não podem repetir entre as duas listas.
+    .replace(/\sid="([^"]+)"/g, (_m, id) => ` id="${id}-horizontal"`)
+    // A lista vertical fica escondida no computador e por isso tira os links do
+    // Tab. A horizontal é a visível: precisa ser navegável pelo teclado.
+    .replace(/\stabindex="-1"/g, '');
+
+  const nav =
+    '<nav data-debony="menu-horizontal" aria-label="Menu principal" ' +
+    'class="elementor-nav-menu--main elementor-nav-menu__container elementor-nav-menu--layout-horizontal e--pointer-underline e--animation-fade">' +
+    listaHorizontal +
+    '</nav>';
+
+  // Antes do botão, na mesma posição em que o Elementor põe a <nav> horizontal.
+  return comWidget.replace('<div class="elementor-menu-toggle"', (botao) => nav + botao);
+}
 
 async function aplicarCustomizacoes() {
   const todas = (await walk(OUT_DIR))
     .filter((f) => f.endsWith('.html'))
     .map((f) => relative(OUT_DIR, f).split(sep).join('/'));
 
-  for (const { paginas, motivo, padrao, ausente, substituto } of CUSTOMIZACOES) {
+  for (const { paginas, motivo, padrao, ausente, presente, substituto } of CUSTOMIZACOES) {
     const alvo = paginas === '*' ? todas : paginas;
     let alteradas = 0;
 
@@ -206,16 +269,25 @@ async function aplicarCustomizacoes() {
       const depois = html.replace(padrao, (tag) =>
         typeof substituto === 'function' ? substituto(tag, { rel }) : (substituto ?? ''),
       );
-      if (depois !== html) {
-        await writeFile(file, depois);
-        alteradas++;
-      }
 
-      if (depois.includes(ausente)) {
+      // Travas antes de gravar: uma regra que falha não pode deixar a página
+      // pela metade em disco.
+      if (ausente && depois.includes(ausente)) {
         throw new Error(
           `"${ausente}" ainda aparece em ${pagina}. ` +
             `O markup da origem provavelmente mudou e o padrão da customização não casa mais.`,
         );
+      }
+      if (presente && !depois.includes(presente)) {
+        throw new Error(
+          `"${presente}" não aparece em ${pagina}. ` +
+            `O padrão da customização não casou — o markup da origem provavelmente mudou.`,
+        );
+      }
+
+      if (depois !== html) {
+        await writeFile(file, depois);
+        alteradas++;
       }
     }
 

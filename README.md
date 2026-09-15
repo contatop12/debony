@@ -42,6 +42,7 @@ apontando para `site/`):
 
 ```bash
 node tools/test-lightbox.mjs http://127.0.0.1:8905/certificados/
+node tools/test-menu.mjs     http://127.0.0.1:8905
 node tools/scan-404.mjs      http://127.0.0.1:8905
 ```
 
@@ -193,6 +194,23 @@ Em vigor:
     original. `width`, `height`, `class` e `fetchpriority` ficam como estavam,
     então layout e prioridade de carregamento do cabeçalho não mudam.
   - Para trocar a logo no futuro: substitua o PNG, rode `npm run logo` e o build.
+- **Todas as páginas, menu do cabeçalho** — horizontal no computador, hambúrguer
+  só em telas menores.
+  - O widget do Elementor estava com layout "dropdown", que gera só a lista
+    vertical com o botão, em qualquer tela. O build cria a `<nav>` horizontal no
+    formato que o CSS e o JS do Elementor já presentes no mirror sabem exibir,
+    copiando a lista da `<nav>` vertical de cada página — os links são relativos
+    e mudam com a profundidade, e item novo no menu da origem entra nas duas.
+  - **Breakpoint:** horizontal a partir de **1025px**, hambúrguer até 1024px
+    (breakpoint "tablet" do próprio site, em `MENU_HAMBURGUER_ATE`). Abaixo disso
+    não cabem logo, seis itens e o botão numa linha. Entre 1025 e 1279px a logo e
+    os itens ficam mais compactos para caber.
+  - **Especificidade:** os seletores do menu em `app.css` são (0,4,1) de propósito.
+    O Elementor tem `a:hover { padding: 13px 20px }` com (0,3,1); com um seletor
+    mais fraco o item crescia até 24px no hover, o menu inteiro pulava e o submenu
+    saía de baixo do cursor. `tools/test-menu.mjs` mede isso.
+  - O submenu "Sobre nós" abre por CSS no hover e no foco do teclado. O SmartMenus
+    do Elementor inicializa na `<nav>`, mas não abria no hover nem pelo Tab.
 
 
 ## Notas do clone

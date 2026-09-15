@@ -221,3 +221,160 @@
   width: 100%;
   height: auto;
 }
+
+/* ---------------------------------------------------------------------------
+   Menu do cabeçalho: horizontal no computador (a partir de 1025px)
+   --------------------------------------------------------------------------- */
+
+/*
+ * Abaixo de 1025px nada aqui se aplica: o CSS do Elementor esconde a <nav>
+ * horizontal e mostra o hambúrguer, como sempre foi. O breakpoint vem da classe
+ * elementor-nav-menu--dropdown-tablet, gerada no build (tools/build.mjs).
+ */
+@media (min-width: 1025px) {
+  /*
+   * O grupo da direita (botão + menu) tinha --width fixo de 332px, pensado para
+   * o botão e o ícone do hambúrguer. Espremido ali, o menu quebrava um item por
+   * linha e o botão encolhia. Agora ocupa o espaço livre ao lado da logo.
+   */
+  .elementor .elementor-element.elementor-element-29de2ff {
+    --width: auto;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 24px;
+  }
+
+  /* Menu à esquerda do botão "Entre em contato", que não pode encolher. */
+  .elementor .elementor-element.elementor-element-265527d {
+    order: -1;
+    width: auto;
+  }
+
+  .elementor .elementor-element.elementor-element-2f8444d {
+    flex-shrink: 0;
+  }
+
+  [data-debony="menu-horizontal"] > .elementor-nav-menu {
+    flex-wrap: nowrap;
+  }
+
+  /*
+   * Seletor com especificidade (0,4,1) de propósito. O Elementor tem
+   * `.elementor-nav-menu--main .elementor-nav-menu a:hover { padding: 13px 20px }`,
+   * (0,3,1): um seletor (0,3,0) vence no estado normal mas perde no hover, e o
+   * item crescia até 24px ao passar o mouse. O menu inteiro pulava, e o submenu
+   * "Sobre nós" saía de baixo do cursor e fechava. Mantenha acima de (0,3,1).
+   */
+
+  .elementor [data-debony="menu-horizontal"] .elementor-nav-menu a.elementor-item {
+    font-family: var(--e-global-typography-text-font-family), Sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--e-global-color-accent);
+    padding: 12px 14px;
+    white-space: nowrap;
+  }
+
+  .elementor [data-debony="menu-horizontal"] .elementor-item:hover,
+  .elementor [data-debony="menu-horizontal"] .elementor-item:focus-visible,
+  .elementor [data-debony="menu-horizontal"] .elementor-item.elementor-item-active {
+    color: var(--e-global-color-primary);
+  }
+
+  /* Sublinhado do ponteiro na cor da marca, e não no cinza padrão do Elementor. */
+  .elementor [data-debony="menu-horizontal"] .elementor-item::after {
+    background-color: var(--e-global-color-primary);
+  }
+
+  /* Caret do submenu "Sobre nós" acompanha a cor do texto. */
+  .elementor [data-debony="menu-horizontal"] .sub-arrow svg {
+    fill: currentColor;
+  }
+
+  /*
+   * Submenu "Sobre nós" por CSS, no hover e no foco do teclado.
+   *
+   * O SmartMenus do Elementor inicializa nesta <nav>, mas não abre o submenu no
+   * hover (medido em Chrome, com movimento real do mouse), e nunca abriria pelo
+   * Tab. Abrir por CSS não depende de JS e se comporta igual nos dois casos.
+   * Sem o SmartMenus abrindo, ninguém calcula a posição: ela vai fixa aqui,
+   * colada ao item para o mouse não cruzar um vão e fechar o submenu no caminho.
+   */
+  [data-debony="menu-horizontal"] .menu-item-has-children {
+    position: relative;
+  }
+
+  [data-debony="menu-horizontal"] .menu-item-has-children > .sub-menu {
+    top: 100%;
+    left: 0;
+    /*
+     * Largura do conteúdo. O Elementor fixa 12em e os itens não quebram linha:
+     * "Sustentabilidade e Responsabilidade Social" vazava do fundo azul e, branco
+     * sobre a página branca, sumia pela metade.
+     */
+    width: max-content;
+    min-width: 240px;
+    z-index: 9999;
+  }
+
+  /*
+   * Os subitens herdam a fonte grande do menu de celular, pensada para toque.
+   * No computador acompanham os itens do topo. Só a fonte: o padding do Elementor
+   * é o mesmo com e sem hover aqui, e mexer nele reabriria o risco de salto.
+   * Especificidade (0,4,1) contra o (0,3,0) da regra de fonte do Elementor.
+   */
+  .elementor [data-debony="menu-horizontal"] .sub-menu a.elementor-sub-item {
+    font-size: 16px;
+  }
+
+  [data-debony="menu-horizontal"] .menu-item-has-children:hover > .sub-menu,
+  [data-debony="menu-horizontal"] .menu-item-has-children:focus-within > .sub-menu {
+    display: block !important;
+  }
+}
+
+/*
+ * Entre 1025 e 1279px não cabem logo de 320px + 6 itens + botão numa linha: o
+ * menu encostava na logo e passava por cima do botão. Aqui a logo e os itens
+ * ficam mais compactos. Medido em Chrome de 1025 a 1279px.
+ */
+@media (min-width: 1025px) and (max-width: 1279px) {
+  .elementor .elementor-element.elementor-element-9c44feb {
+    --width: 230px;
+    width: 230px;
+    flex-shrink: 0;
+  }
+
+  .elementor .elementor-element.elementor-element-9c44feb img {
+    width: 100%;
+    height: auto;
+  }
+
+  .elementor .elementor-element.elementor-element-29de2ff {
+    gap: 12px;
+  }
+
+  .elementor [data-debony="menu-horizontal"] .elementor-nav-menu a.elementor-item {
+    font-size: 14px;
+    padding: 10px 8px;
+  }
+
+  .elementor .elementor-element.elementor-element-2f8444d .elementor-button {
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+}
+
+/* Fim da faixa: em 1025px o menu ainda encostava na logo. */
+@media (min-width: 1025px) and (max-width: 1099px) {
+  .elementor .elementor-element.elementor-element-9c44feb {
+    --width: 200px;
+    width: 200px;
+  }
+
+  .elementor [data-debony="menu-horizontal"] .elementor-nav-menu a.elementor-item {
+    padding: 10px 6px;
+  }
+}
