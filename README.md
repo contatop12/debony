@@ -25,6 +25,7 @@ npm run mirror     # rebaixa o site de origem para site/ (resume o que já exist
 npm run optimize   # converte PNG/JPEG para WebP e reescreve as referências
 npm run build      # compila o TS, copia public/ e injeta os assets nas páginas
 npm test           # exercita api/contact.ts sem depender da Vercel
+npm run test:e2e   # formulário + UTMs num Chrome real, com webhook stub local
 npm run verify     # typecheck + referências + npm test
 npm run release    # mirror + optimize + build + verify, na ordem
 npm run dev        # vercel dev
@@ -74,17 +75,58 @@ preserva o método.
 
 ### Variáveis de ambiente
 
-Sem elas, `/api/contact` responde 503 com uma mensagem clara ao visitante —
-falha visível em vez de mensagem perdida em silêncio. Defina em
-**Project Settings > Environment Variables**:
+Defina em **Project Settings > Environment Variables**. É preciso **pelo menos
+um destino** — webhook ou Resend. Sem nenhum, `/api/contact` responde 503 com
+uma mensagem clara ao visitante: falha visível em vez de lead perdido em silêncio.
 
-| Variável | Obrigatória | Para quê |
-|---|---|---|
-| `CONTACT_TO` | sim | Destino das mensagens |
-| `CONTACT_FROM` | sim | Remetente verificado no provedor |
-| `RESEND_API_KEY` | sim | Chave da API Resend |
-| `CONTACT_WEBHOOK` | não | URL que recebe uma cópia em JSON |
+| Variável | Para quê |
+|---|---|
+| `CONTACT_WEBHOOK` | URL do n8n que recebe cada lead em JSON |
+| `RESEND_API_KEY` | Opcional: também envia o lead por e-mail |
+| `CONTACT_TO` | Destino do e-mail (obrigatório com Resend) |
+| `CONTACT_FROM` | Remetente verificado (obrigatório com Resend) |
 
+> **A URL do webhook fica só na variável de ambiente, nunca no código.** O
+> repositório é público: quem tivesse a URL poderia injetar leads falsos no n8n.
+> Ela também nunca chega ao navegador — quem chama o n8n é a função, no servidor.
+
+Mudança de variável só vale a partir do **próximo deploy**.
+
+Se o webhook responder erro ou passar de 10 s, o visitante vê "Não foi possível
+enviar agora" (502) em vez de uma confirmação falsa.
+
+
+## Formulário e atribuição (UTMs)
+
+O formulário de `/contato/` envia para `/api/contact`, que repassa o lead ao
+webhook. Junto com nome, e-mail e mensagem vão os dados de origem da visita.
+
+**Captura.** O visitante chega pelo anúncio numa página qualquer — em geral a
+home — e só depois navega até o contato, momento em que os parâmetros já sumiram
+da URL. Por isso `src/attribution.ts` roda em toda página e guarda os parâmetros
+na chegada (`localStorage`, validade de 30 dias).
+
+**Modelo: último toque.** Uma nova chegada com parâmetros substitui a anterior
+por inteiro — campos da campanha antiga não vazam para o lead novo. Visitas sem
+parâmetros (acesso direto, navegação interna) não apagam o que já existe.
+
+**Payload do webhook** — campos planos, para mapear direto nos nós do n8n:
+
+| Campo | Origem |
+|---|---|
+| `name`, `email`, `message` | formulário |
+| `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content` | URL de chegada |
+| `gclid`, `fbclid` | IDs de clique do Google Ads e da Meta |
+| `landing_page` | URL em que o visitante chegou com os parâmetros |
+| `referrer` | site de onde veio antes da chegada |
+| `captured_at` | quando os parâmetros foram capturados |
+| `page_url` | página em que o formulário foi enviado |
+| `received_at` | quando o servidor recebeu o lead |
+| `ip`, `country` | cabeçalhos da Vercel |
+
+Campo de atribuição ausente simplesmente não aparece no JSON. O servidor só
+aceita os campos da tabela, só strings, com até 500 caracteres cada — o corpo
+vem do navegador e é controlado por quem envia.
 
 ## Imagens
 

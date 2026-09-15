@@ -3,14 +3,14 @@
  *
  * Compila api/contact.ts e chama o handler com Request/Response reais — a mesma
  * assinatura que a Vercel usa em runtime. O caminho de envio é exercido contra
- * um webhook stub local, então o "ok" não é presumido.
+ * um webhook stub local, então o "ok" não é presumido. Nunca toca o webhook real.
  *
  * Uso: node tools/test-contact.mjs
  */
 
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -37,13 +37,14 @@ const { default: handler } = await import(pathToFileURL(out).href);
 
 // --- webhook stub -----------------------------------------------------------
 const recebidos = [];
+let statusDoStub = 200;
 const stub = createServer((req, res) => {
   let corpo = '';
   req.on('data', (c) => (corpo += c));
   req.on('end', () => {
     recebidos.push(corpo);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end('{"ok":true}');
+    res.writeHead(statusDoStub, { 'Content-Type': 'application/json' });
+    res.end('{}');
   });
 });
 await new Promise((r) => stub.listen(0, '127.0.0.1', r));
@@ -68,7 +69,9 @@ const limparEnv = () => {
   }
 };
 
-// --- casos ------------------------------------------------------------------
+const ultimoRecebido = () => (recebidos.length ? JSON.parse(recebidos.at(-1)) : null);
+
+// --- validação --------------------------------------------------------------
 limparEnv();
 
 let r = await chamar(null, { method: 'GET' });
@@ -93,26 +96,88 @@ r = await chamar({ ...validos, website: 'sou-um-bot' });
 check('honeypot responde 200 sem enviar', r.status === 200 && recebidos.length === 0);
 
 r = await chamar(validos);
-check('sem provedor configurado responde 503', r.status === 503, `${r.status}`);
+check('sem destino configurado responde 503', r.status === 503, `${r.status}`);
 
-r = await chamar({ name: 'x'.repeat(20000), email: 'a@b.com', message: 'oi oi oi' });
+r = await chamar({ name: 'x'.repeat(40000), email: 'a@b.com', message: 'oi oi oi' });
 check('corpo gigante responde 413', r.status === 413, `${r.status}`);
 
-// Caminho feliz: webhook stub recebe a mensagem.
+// --- envio ao webhook -------------------------------------------------------
 process.env['CONTACT_WEBHOOK'] = webhookUrl;
-r = await chamar(validos, { origin: ORIGEM });
-const corpoRecebido = recebidos.length === 1 ? JSON.parse(recebidos[0]) : null;
+
+r = await chamar(validos, { origin: ORIGEM, headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' } });
+let lead = ultimoRecebido();
 check(
   'envio válido responde 200 e entrega ao webhook',
-  r.status === 200 && corpoRecebido?.email === validos.email && corpoRecebido?.name === validos.name,
+  r.status === 200 && lead?.email === validos.email && lead?.name === validos.name,
   `${r.status}, webhook recebeu ${recebidos.length}`,
 );
-check('sem cabeçalho no-store a resposta não seria cacheável', r.headers.get('Cache-Control') === 'no-store');
+check('resposta não é cacheável', r.headers.get('Cache-Control') === 'no-store');
+check('ip é o primeiro da cadeia x-forwarded-for', lead?.ip === '203.0.113.7', `${lead?.ip}`);
+check('sem atribuição o lead não ganha campos utm', !Object.keys(lead ?? {}).some((k) => k.startsWith('utm_')));
+
+// --- atribuição (UTMs) ------------------------------------------------------
+const atribuicao = {
+  utm_source: 'google',
+  utm_medium: 'cpc',
+  utm_campaign: 'usinagem-sp',
+  utm_term: 'torno cnc',
+  utm_content: 'anuncio-a',
+  gclid: 'Cj0KCQ-teste',
+  fbclid: 'IwAR-teste',
+  landing_page: 'https://debony.example/?utm_source=google',
+  referrer: 'https://www.google.com/',
+  captured_at: '2026-09-15T12:00:00.000Z',
+  page_url: 'https://debony.example/contato/',
+};
+
+r = await chamar({ ...validos, attribution: atribuicao }, { origin: ORIGEM });
+lead = ultimoRecebido();
+const faltando = Object.entries(atribuicao).filter(([k, v]) => lead?.[k] !== v).map(([k]) => k);
+check(
+  'todos os campos de atribuição chegam planos ao webhook',
+  r.status === 200 && faltando.length === 0,
+  faltando.length ? `faltando: ${faltando.join(', ')}` : '11 campos',
+);
+
+r = await chamar(
+  {
+    ...validos,
+    attribution: {
+      utm_source: 'meta',
+      campo_inventado: 'nao deveria passar',
+      __proto__: { poluido: true },
+      utm_medium: 12345,
+      utm_campaign: '   ',
+      utm_term: 'x'.repeat(2000),
+    },
+  },
+  { origin: ORIGEM },
+);
+lead = ultimoRecebido();
+check('campo fora da lista é descartado', lead && !('campo_inventado' in lead) && !('poluido' in lead));
+check('valor não-string é descartado', lead && !('utm_medium' in lead), `${lead?.utm_medium}`);
+check('valor só com espaços é descartado', lead && !('utm_campaign' in lead));
+check('valor longo é truncado em 500', lead?.utm_term?.length === 500, `${lead?.utm_term?.length}`);
+check('campo válido do mesmo envio passa', lead?.utm_source === 'meta');
+
+r = await chamar({ ...validos, attribution: ['nao', 'e', 'objeto'] }, { origin: ORIGEM });
+check('atribuição em formato inválido não derruba o envio', r.status === 200);
+
+// --- falha do destino -------------------------------------------------------
+statusDoStub = 500;
+r = await chamar(validos, { origin: ORIGEM });
+check('webhook fora do ar responde 502, não finge sucesso', r.status === 502, `${r.status}`);
+statusDoStub = 200;
 
 limparEnv();
-stub.close();
+// Fecha as conexões keep-alive e espera o servidor terminar. Encerrar o processo
+// com o handle ainda fechando aborta o Node no Windows (assert em async.c), e o
+// exit code 127 reprovaria o verify com todos os testes verdes.
+stub.closeAllConnections();
+await new Promise((r) => stub.close(r));
 await rm(dir, { recursive: true, force: true });
 
 const falhas = resultados.filter((x) => !x.ok);
 console.log(`\n${resultados.length - falhas.length}/${resultados.length} verificações passaram`);
-process.exit(falhas.length === 0 ? 0 : 1);
+// exitCode, e não process.exit(): deixa o event loop esvaziar sozinho.
+process.exitCode = falhas.length === 0 ? 0 : 1;

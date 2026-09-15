@@ -1,3 +1,4 @@
+import { getAttribution } from './attribution';
 import { $$, fieldValue } from './dom';
 import type { ContactPayload, ContactResponse, FormStatus } from './types';
 
@@ -45,6 +46,7 @@ async function handleSubmit(event: Event, form: HTMLFormElement): Promise<void> 
     email: fieldValue(form, 'form_fields[email]'),
     message: fieldValue(form, 'form_fields[message]'),
     website: fieldValue(form, 'form_fields[website]'),
+    attribution: { ...getAttribution(), page_url: location.href },
   };
 
   // Bot: encerra em silêncio, sem gastar chamada da Function.

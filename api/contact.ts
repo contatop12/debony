@@ -4,14 +4,18 @@
  * O site de origem era WordPress e o Elementor postava em admin-ajax.php, que
  * não existe no estático. Esta função assume o envio.
  *
- * Projeto sem framework: o Vercel detecta `api/` na raiz e usa a assinatura
+ * Projeto sem framework: a Vercel detecta `api/` na raiz e usa a assinatura
  * `export default { fetch }`, com Request/Response da Web API.
  *
- * Variáveis de ambiente (Project Settings > Environment Variables):
- *   CONTACT_TO        destino das mensagens   (ex.: contato@debonyusinagem.com.br)
- *   CONTACT_FROM      remetente verificado    (ex.: site@debonyusinagem.com.br)
- *   RESEND_API_KEY    chave da API Resend     (obrigatória para enviar e-mail)
- *   CONTACT_WEBHOOK   opcional: URL que também recebe uma cópia em JSON
+ * Variáveis de ambiente (Project Settings > Environment Variables). É preciso
+ * pelo menos um destino configurado — webhook ou Resend:
+ *   CONTACT_WEBHOOK   URL que recebe o lead em JSON (n8n)
+ *   RESEND_API_KEY    chave da API Resend, para também enviar por e-mail
+ *   CONTACT_TO        destino do e-mail   (obrigatório com Resend)
+ *   CONTACT_FROM      remetente verificado (obrigatório com Resend)
+ *
+ * A URL do webhook fica só na variável de ambiente, nunca no código: o
+ * repositório é público, e quem a tivesse poderia injetar leads falsos no n8n.
  */
 
 interface ContactPayload {
@@ -19,6 +23,7 @@ interface ContactPayload {
   email?: unknown;
   message?: unknown;
   website?: unknown;
+  attribution?: unknown;
 }
 
 interface Submission {
@@ -27,9 +32,33 @@ interface Submission {
   message: string;
 }
 
-const MAX_BODY_BYTES = 8 * 1024;
+// Folga para a atribuição, que traz URLs longas (landing_page, referrer).
+const MAX_BODY_BYTES = 16 * 1024;
 const LIMITS = { name: 120, email: 200, message: 4000 } as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const UPSTREAM_TIMEOUT_MS = 10_000;
+
+/**
+ * Só estes campos de atribuição seguem para o webhook. O corpo vem do navegador
+ * e é controlado por quem envia: lista fechada, só strings, tamanho limitado.
+ */
+const ATTRIBUTION_KEYS = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'gclid',
+  'fbclid',
+  'landing_page',
+  'referrer',
+  'captured_at',
+  'page_url',
+] as const;
+const ATTRIBUTION_MAX = 500;
+
+type AttributionKey = (typeof ATTRIBUTION_KEYS)[number];
+type Attribution = Partial<Record<AttributionKey, string>>;
 
 const json = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {
@@ -78,6 +107,7 @@ export default {
     if (message.length < 5) return json({ ok: false, error: 'Escreva sua mensagem.' }, 400);
 
     const submission: Submission = { name, email, message };
+    const attribution = cleanAttribution(body.attribution);
     const tasks: Promise<Response>[] = [];
 
     const webhook = process.env['CONTACT_WEBHOOK'];
@@ -86,13 +116,15 @@ export default {
         fetch(webhook, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // Campos planos: mapeiam direto nos nós do n8n, sem precisar abrir objeto.
           body: JSON.stringify({
             ...submission,
-            receivedAt: new Date().toISOString(),
-            // Cabeçalhos do Vercel; no Cloudflare eram CF-Connecting-IP/CF-IPCountry.
-            ip: request.headers.get('x-forwarded-for'),
+            ...attribution,
+            received_at: new Date().toISOString(),
+            ip: firstIp(request.headers.get('x-forwarded-for')),
             country: request.headers.get('x-vercel-ip-country'),
           }),
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         }),
       );
     }
@@ -102,9 +134,11 @@ export default {
     const from = process.env['CONTACT_FROM'];
 
     if (apiKey && to && from) {
-      tasks.push(sendViaResend({ apiKey, to, from }, submission));
-    } else if (tasks.length === 0) {
-      // Sem provedor configurado, falhar alto é melhor que perder a mensagem.
+      tasks.push(sendViaResend({ apiKey, to, from }, submission, attribution));
+    }
+
+    if (tasks.length === 0) {
+      // Sem destino configurado, falhar alto é melhor que perder a mensagem.
       return json(
         { ok: false, error: 'Envio indisponível no momento. Fale conosco pelo telefone ou e-mail.' },
         503,
@@ -125,10 +159,31 @@ function clean(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
+function cleanAttribution(value: unknown): Attribution {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const out: Attribution = {};
+  for (const key of ATTRIBUTION_KEYS) {
+    const v = source[key];
+    if (typeof v === 'string' && v.trim() !== '') out[key] = v.trim().slice(0, ATTRIBUTION_MAX);
+  }
+  return out;
+}
+
+/** x-forwarded-for pode trazer a cadeia de proxies; o cliente é o primeiro. */
+function firstIp(header: string | null): string | null {
+  return header?.split(',')[0]?.trim() || null;
+}
+
 function sendViaResend(
   cfg: { apiKey: string; to: string; from: string },
   s: Submission,
+  attribution: Attribution,
 ): Promise<Response> {
+  const origem = Object.entries(attribution)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
+
   return fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -140,7 +195,10 @@ function sendViaResend(
       to: [cfg.to],
       reply_to: s.email,
       subject: `Contato pelo site — ${s.name}`,
-      text: `Nome: ${s.name}\nE-mail: ${s.email}\n\n${s.message}`,
+      text:
+        `Nome: ${s.name}\nE-mail: ${s.email}\n\n${s.message}` +
+        (origem ? `\n\n--- Origem ---\n${origem}` : ''),
     }),
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
 }

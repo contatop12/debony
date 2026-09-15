@@ -14,7 +14,8 @@
     "release": "npm run mirror && npm run optimize && npm run build && npm run verify",
     "dev": "vercel dev",
     "deploy": "vercel --prod",
-    "test": "node tools/test-contact.mjs"
+    "test": "node tools/test-contact.mjs",
+    "test:e2e": "node tools/test-form-e2e.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
