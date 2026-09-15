@@ -134,6 +134,22 @@ const CUSTOMIZACOES = [
     ausente: 'ESTRUTURA_JOLUMA-24-1',
   },
   {
+    paginas: ['qualidade/index.html'],
+    motivo: 'Carrossel de /qualidade/ com as 2 fotos restantes centralizadas (2026-09-16)',
+    /*
+     * Consequência da remoção acima: sobraram 2 slides num carrossel de 3 por vez,
+     * e o Swiper os alinhava à esquerda, com um vão de um slide à direita.
+     * `centerInsufficientSlides` é a opção do próprio Swiper para isso: centraliza
+     * só quando há menos slides que o número por vez. No celular (1 por vez) e
+     * entre 568 e 785px (2 por vez) os slides preenchem a linha e nada muda.
+     * Só nesta página: /estrutura/ e /sobre-nos/ usam o mesmo carrossel com 5.
+     * O padrão aceita a opção já inserida, para o build ser idempotente.
+     */
+    padrao: /new\s+Swiper\(\s*"\.swiper-sobre"\s*,\s*\{(?:\s*centerInsufficientSlides:\s*true,)?/,
+    presente: 'centerInsufficientSlides: true',
+    substituto: () => 'new Swiper(".swiper-sobre", { centerInsufficientSlides: true,',
+  },
+  {
     paginas: ['index.html'],
     motivo: 'Mapa estático de "Nossos produtos percorrem o mundo" trocado pelo GIF animado (2026-09-15)',
     // Casa também o <picture> que este build gerou antes: assim um GIF novo

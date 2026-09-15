@@ -174,6 +174,11 @@ Em vigor:
 - **`/qualidade/`** — removida a foto do meio do carrossel
   (`ESTRUTURA_JOLUMA-24-1`). O arquivo continua no mirror de propósito: a mesma
   imagem é usada em `/estrutura/`.
+  - Com 2 fotos num carrossel de 3 por vez, o Swiper as alinhava à esquerda.
+    A config do carrossel dessa página ganha `centerInsufficientSlides: true`,
+    opção do próprio Swiper que centraliza só quando há menos slides que o
+    número por vez — no celular (1 por vez) nada muda. `/estrutura/` e
+    `/sobre-nos/` usam o mesmo carrossel com 5 fotos e não são tocadas.
 - **Home, "Nossos produtos percorrem o mundo"** — o mapa estático
   (`Group-41-1.svg`) foi trocado por `public/assets/img/animacao-envios-brasil.gif`.
   - O GIF já traz o selo "Brasil". O selo original do Elementor é um container
