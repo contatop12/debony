@@ -6,6 +6,7 @@
  */
 
 import { build } from 'esbuild';
+import { createHash } from 'node:crypto';
 import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
 
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -87,45 +88,78 @@ async function validateVercelConfig(file) {
   }
 }
 
+/** Versão curta pelo conteúdo, para furar o cache imutável de /assets quando o arquivo muda. */
+async function versao(caminhoEmPublic) {
+  const conteudo = await readFile(join('public', ...caminhoEmPublic.split('/')));
+  return createHash('sha256').update(conteudo).digest('hex').slice(0, 8);
+}
+
 /**
- * Remoções pedidas pelo cliente, aplicadas sobre o mirror.
+ * Customizações pedidas pelo cliente, aplicadas sobre o mirror.
  *
  * Editar `site/` à mão não adianta: o próximo `npm run mirror` rebaixa a página
- * e a imagem volta. Por isso a regra mora aqui, no build, que roda depois.
+ * e o conteúdo original volta. Por isso as regras moram aqui, no build.
+ *
+ * Cada entrada troca `padrao` por `substituto` (vazio = remoção). `substituto`
+ * pode ser uma função, que recebe `versao()` para montar URLs com cache-busting.
  *
  * `ausente` é a trava: depois de aplicar o padrão, se a marca ainda estiver na
  * página o build falha. Assim, se o markup mudar na origem e o padrão deixar de
- * casar, aparece um erro — em vez de a imagem reaparecer sem ninguém notar.
+ * casar, aparece um erro — em vez de o conteúdo original reaparecer sem ninguém
+ * notar.
  */
-const REMOCOES = [
+const CUSTOMIZACOES = [
   {
     pagina: 'qualidade/index.html',
     motivo: 'Cliente pediu a remoção da foto do meio do carrossel (2026-09-10)',
     padrao: /\s*<div class="swiper-slide">\s*<img[^>]*ESTRUTURA_JOLUMA-24-1[^>]*>\s*<\/div>/i,
     ausente: 'ESTRUTURA_JOLUMA-24-1',
   },
+  {
+    pagina: 'index.html',
+    motivo: 'Mapa estático de "Nossos produtos percorrem o mundo" trocado pelo GIF animado (2026-09-15)',
+    // Casa também o <picture> que este build gerou antes: assim um GIF novo
+    // em public/ troca o ?v= mesmo quando a página já foi customizada.
+    padrao:
+      /<img\b[^>]*Group-41-1\.svg[^>]*>|<picture data-debony="mapa-envios">[\s\S]*?<\/picture>/i,
+    ausente: 'Group-41-1.svg',
+    substituto: async ({ versao }) => {
+      const gif = 'assets/img/animacao-envios-brasil.gif';
+      const estatico = 'assets/img/animacao-envios-brasil-estatico.webp';
+      return (
+        '<picture data-debony="mapa-envios">' +
+        // Animação em loop contínuo: quem pede menos movimento recebe um quadro parado.
+        `<source media="(prefers-reduced-motion: reduce)" srcset="./${estatico}?v=${await versao(estatico)}" type="image/webp">` +
+        `<img loading="lazy" decoding="async" width="1045" height="636" ` +
+        `src="./${gif}?v=${await versao(gif)}" class="attachment-large size-large" ` +
+        `alt="Mapa com envios a partir do Brasil para as Américas, Europa, África e Ásia">` +
+        '</picture>'
+      );
+    },
+  },
 ];
 
-async function aplicarRemocoes() {
-  for (const { pagina, motivo, padrao, ausente } of REMOCOES) {
+async function aplicarCustomizacoes() {
+  for (const { pagina, motivo, padrao, ausente, substituto } of CUSTOMIZACOES) {
     const file = join(OUT_DIR, ...pagina.split('/'));
     let html;
     try {
       html = await readFile(file, 'utf8');
     } catch {
-      throw new Error(`remoção aponta para página inexistente: ${pagina}`);
+      throw new Error(`customização aponta para página inexistente: ${pagina}`);
     }
 
-    const depois = html.replace(padrao, '');
+    const novo = typeof substituto === 'function' ? await substituto({ versao }) : (substituto ?? '');
+    const depois = html.replace(padrao, () => novo);
     if (depois !== html) {
       await writeFile(file, depois);
-      console.log(`removido de ${pagina}: ${motivo}`);
+      console.log(`${pagina}: ${motivo}`);
     }
 
     if (depois.includes(ausente)) {
       throw new Error(
         `"${ausente}" ainda aparece em ${pagina}. ` +
-          `O markup da origem provavelmente mudou e o padrão da remoção não casa mais.`,
+          `O markup da origem provavelmente mudou e o padrão da customização não casa mais.`,
       );
     }
   }
@@ -150,8 +184,8 @@ async function main() {
   await cp('public', OUT_DIR, { recursive: true });
   await validateVercelConfig('vercel.json');
 
-  // 3. Remoções pedidas pelo cliente, antes de injetar os assets.
-  await aplicarRemocoes();
+  // 3. Customizações pedidas pelo cliente, antes de injetar os assets.
+  await aplicarCustomizacoes();
 
   // 4. Injeta os assets próprios em cada página.
   const pages = (await walk(OUT_DIR)).filter((f) => f.endsWith('.html'));

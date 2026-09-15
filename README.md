@@ -113,21 +113,34 @@ lightbox sozinho**, sem editar código.
 
 `tools/test-lightbox.mjs` cobre esse comportamento num Chrome real.
 
-## Remoções pedidas pelo cliente
+## Customizações pedidas pelo cliente
 
 Editar `site/` à mão não resolve: o próximo `npm run mirror` rebaixa a página da
-origem e o conteúdo volta. As remoções ficam na lista `REMOCOES`, em
-`tools/build.mjs`, que roda depois do mirror.
+origem e o conteúdo original volta. As customizações ficam na lista
+`CUSTOMIZACOES`, em `tools/build.mjs`, que roda depois do mirror.
 
-Cada entrada tem um `padrao` (o trecho a remover) e um `ausente` (a marca que
-não pode sobrar na página). Depois de aplicar o padrão, o build confere a marca
-e **falha** se ela ainda estiver lá — assim, se o markup mudar na origem e o
-padrão deixar de casar, aparece um erro em vez de o conteúdo reaparecer sem
-ninguém notar.
+Cada entrada troca um `padrao` por um `substituto` (vazio = remoção) e declara
+um `ausente` — a marca que não pode sobrar na página. Depois de aplicar o
+padrão, o build confere a marca e **falha** se ela ainda estiver lá: se o markup
+mudar na origem e o padrão deixar de casar, aparece um erro em vez de o conteúdo
+original reaparecer sem ninguém notar.
 
-Em vigor: a foto do meio do carrossel de `/qualidade/`
-(`ESTRUTURA_JOLUMA-24-1`). O arquivo continua no mirror de propósito — a mesma
-imagem é usada em `/estrutura/`.
+Em vigor:
+
+- **`/qualidade/`** — removida a foto do meio do carrossel
+  (`ESTRUTURA_JOLUMA-24-1`). O arquivo continua no mirror de propósito: a mesma
+  imagem é usada em `/estrutura/`.
+- **Home, "Nossos produtos percorrem o mundo"** — o mapa estático
+  (`Group-41-1.svg`) foi trocado por `public/assets/img/animacao-envios-brasil.gif`.
+  - O GIF já traz o selo "Brasil". O selo original do Elementor é um container
+    sobreposto ao mapa, escondido por CSS em `public/assets/css/app.css` para não
+    duplicar. Ele é selecionado por `data-id` exato: IDs do Elementor têm tamanho
+    variável.
+  - Quem ativa *reduzir movimento* no sistema recebe um quadro parado
+    (`animacao-envios-brasil-estatico.webp`, 19 KB) em vez da animação em loop.
+  - As URLs levam `?v=<hash do conteúdo>`, porque `/assets` tem cache imutável:
+    trocar o GIF em `public/` e rodar o build já fura o cache.
+
 
 ## Notas do clone
 

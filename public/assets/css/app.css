@@ -200,3 +200,24 @@
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Mapa de "Nossos produtos percorrem o mundo" (home)
+   --------------------------------------------------------------------------- */
+
+/*
+ * O GIF animado já traz o selo "Brasil" com o pino. O selo original do Elementor
+ * é um container posicionado por cima do mapa e ficaria duplicado.
+ * Escondido por CSS, e não removido do HTML, porque o container tem divs
+ * aninhados — removê-lo com regex seria frágil a qualquer mudança de markup.
+ */
+/* Por data-id exato: os IDs do Elementor têm tamanho variável (este tem 8
+   caracteres), e um seletor montado a partir de um ID truncado não casa nada. */
+.elementor-10 [data-id="3e169061"] {
+  display: none !important;
+}
+
+[data-debony="mapa-envios"] img {
+  width: 100%;
+  height: auto;
+}
