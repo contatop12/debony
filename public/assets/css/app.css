@@ -369,6 +369,46 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Políticas de Privacidade: respiro abaixo do cabeçalho fixo
+   --------------------------------------------------------------------------- */
+
+/*
+ * A página começa com uma faixa azul vazia de 68px (d46053e), que no layout
+ * original fica atrás do cabeçalho e dá a ele o fundo azul nesta página. Logo
+ * depois vem o texto (abace89), e o primeiro parágrafo ficava 7px atrás do
+ * cabeçalho.
+ *
+ * O respiro vai no container do texto, e não no topo da página: empurrar a
+ * página inteira descia a faixa azul junto e a deixava à mostra como um bloco
+ * vazio abaixo do cabeçalho.
+ *
+ * O valor é a altura medida do cabeçalho em cada faixa, que muda com o tamanho
+ * da logo — com ele o primeiro texto fica ~69px abaixo do cabeçalho em qualquer
+ * tela. Se a logo ou o padding do cabeçalho mudarem, atualize aqui.
+ */
+body.page-id-1007 .elementor-element.elementor-element-abace89 {
+  --padding-top: 84px;
+}
+
+@media (min-width: 1100px) and (max-width: 1279px) {
+  body.page-id-1007 .elementor-element.elementor-element-abace89 {
+    --padding-top: 66px;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1099px) {
+  body.page-id-1007 .elementor-element.elementor-element-abace89 {
+    --padding-top: 60px;
+  }
+}
+
+@media (max-width: 767px) {
+  body.page-id-1007 .elementor-element.elementor-element-abace89 {
+    --padding-top: 68px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Cabeçalho fixo: fundo e contraste com a seção que está por trás
    --------------------------------------------------------------------------- */
 
