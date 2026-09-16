@@ -112,6 +112,14 @@ check('corpo gigante responde 413', r.status === 413, `${r.status}`);
 // --- envio ao webhook -------------------------------------------------------
 process.env['CONTACT_WEBHOOK'] = webhookUrl;
 
+r = await handler.fetch(new Request(`${ORIGEM}/api/contact?rede=1`, { method: 'GET' }));
+const rede = await r.json();
+check(
+  'GET ?rede testa o destino sem criar lead',
+  r.status === 200 && rede.alcancavel === true && recebidos.length === 1,
+  `status ${rede.status}, ${recebidos.length} lead(s) no stub — o mesmo de antes do teste`,
+);
+
 r = await chamar(null, { method: 'GET' });
 const textoDiag = await r.text();
 check(

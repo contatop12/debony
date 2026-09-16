@@ -77,6 +77,31 @@ export default {
      * booleanos — a URL do webhook nunca sai do servidor.
      */
     if (request.method === 'GET') {
+      /*
+       * ?rede=1 testa, a partir da Vercel, se o webhook é alcançável. Usa GET de
+       * propósito: o n8n responde 404 "not registered for GET" sem executar o
+       * fluxo, então não cria lead. Serve para separar problema de rede (DNS,
+       * TLS, bloqueio por WAF) de problema do envio em si — o motivo real fica
+       * do lado do servidor e não aparece na mensagem ao visitante.
+       */
+      if (new URL(request.url).searchParams.has('rede')) {
+        const destino = process.env['CONTACT_WEBHOOK'];
+        if (!destino) return json({ ok: false, erro: 'CONTACT_WEBHOOK ausente' }, 503);
+        const inicio = Date.now();
+        try {
+          const resposta = await fetch(destino, { method: 'GET', signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
+          return json({ ok: true, alcancavel: true, status: resposta.status, ms: Date.now() - inicio });
+        } catch (erro) {
+          const e = erro as Error & { cause?: { message?: string; code?: string } };
+          return json({
+            ok: false,
+            alcancavel: false,
+            erro: `${e.name}: ${e.message}`,
+            causa: e.cause?.code ?? e.cause?.message ?? null,
+            ms: Date.now() - inicio,
+          });
+        }
+      }
       return json({ ok: true, destinos: destinosConfigurados() });
     }
 
@@ -163,6 +188,16 @@ export default {
     const delivered = results.some((r) => r.status === 'fulfilled' && r.value.ok);
 
     if (!delivered) {
+      // Motivo de cada destino nos logs da função: sem isto, a falha de entrega
+      // só aparece como uma mensagem genérica ao visitante.
+      for (const r of results) {
+        if (r.status === 'rejected') {
+          const e = r.reason as Error & { cause?: { message?: string; code?: string } };
+          console.error('[contato] envio rejeitado:', e?.name, e?.message, e?.cause?.code ?? e?.cause?.message ?? '');
+        } else {
+          console.error('[contato] destino respondeu', r.value.status, (await r.value.text().catch(() => '')).slice(0, 200));
+        }
+      }
       return json({ ok: false, error: 'Não foi possível enviar agora. Tente novamente.' }, 502);
     }
     return json({ ok: true });
