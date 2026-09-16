@@ -75,7 +75,15 @@ const ultimoRecebido = () => (recebidos.length ? JSON.parse(recebidos.at(-1)) : 
 limparEnv();
 
 let r = await chamar(null, { method: 'GET' });
-check('GET responde 405', r.status === 405, `${r.status}`);
+let diag = await r.json();
+check(
+  'GET mostra destinos não configurados',
+  r.status === 200 && diag.destinos?.webhook === false && diag.destinos?.email === false,
+  JSON.stringify(diag.destinos),
+);
+
+r = await chamar(null, { method: 'PUT' });
+check('outros métodos respondem 405', r.status === 405, `${r.status}`);
 
 r = await chamar('isso não é json');
 check('corpo inválido responde 400', r.status === 400, `${r.status}`);
@@ -103,6 +111,14 @@ check('corpo gigante responde 413', r.status === 413, `${r.status}`);
 
 // --- envio ao webhook -------------------------------------------------------
 process.env['CONTACT_WEBHOOK'] = webhookUrl;
+
+r = await chamar(null, { method: 'GET' });
+const textoDiag = await r.text();
+check(
+  'GET mostra webhook configurado sem revelar a URL',
+  r.status === 200 && JSON.parse(textoDiag).destinos?.webhook === true && !textoDiag.includes('127.0.0.1') && !textoDiag.includes('/hook'),
+  textoDiag,
+);
 
 r = await chamar(validos, { origin: ORIGEM, headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' } });
 let lead = ultimoRecebido();

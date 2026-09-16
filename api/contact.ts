@@ -71,6 +71,15 @@ const json = (data: unknown, status = 200): Response =>
 
 export default {
   async fetch(request: Request): Promise<Response> {
+    /*
+     * Diagnóstico sem efeito colateral: abrir /api/contact no navegador mostra se
+     * os destinos estão configurados neste deploy, sem enviar lead de teste. Só
+     * booleanos — a URL do webhook nunca sai do servidor.
+     */
+    if (request.method === 'GET') {
+      return json({ ok: true, destinos: destinosConfigurados() });
+    }
+
     if (request.method !== 'POST') {
       return json({ ok: false, error: 'Método não permitido.' }, 405);
     }
@@ -139,6 +148,11 @@ export default {
 
     if (tasks.length === 0) {
       // Sem destino configurado, falhar alto é melhor que perder a mensagem.
+      // O log aparece em Vercel > Logs e aponta a causa direto.
+      console.error(
+        '[contato] Nenhum destino configurado neste deploy: defina CONTACT_WEBHOOK ' +
+          '(ou RESEND_API_KEY + CONTACT_TO + CONTACT_FROM) para o ambiente Production e faça Redeploy.',
+      );
       return json(
         { ok: false, error: 'Envio indisponível no momento. Fale conosco pelo telefone ou e-mail.' },
         503,
@@ -154,6 +168,13 @@ export default {
     return json({ ok: true });
   },
 };
+
+function destinosConfigurados(): { webhook: boolean; email: boolean } {
+  return {
+    webhook: Boolean(process.env['CONTACT_WEBHOOK']),
+    email: Boolean(process.env['RESEND_API_KEY'] && process.env['CONTACT_TO'] && process.env['CONTACT_FROM']),
+  };
+}
 
 function clean(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
