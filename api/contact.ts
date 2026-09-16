@@ -90,7 +90,18 @@ export default {
         const inicio = Date.now();
         try {
           const resposta = await fetch(destino, { method: 'GET', signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
-          return json({ ok: true, alcancavel: true, status: resposta.status, ms: Date.now() - inicio });
+          const corpo = (await resposta.text().catch(() => '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          return json({
+            ok: true,
+            alcancavel: true,
+            status: resposta.status,
+            ms: Date.now() - inicio,
+            // Quem respondeu e por quê: num 403 identifica a proteção que barrou.
+            servidor: resposta.headers.get('server'),
+            cfRay: resposta.headers.get('cf-ray'),
+            cfMitigated: resposta.headers.get('cf-mitigated'),
+            corpo: corpo.slice(0, 300),
+          });
         } catch (erro) {
           const e = erro as Error & { cause?: { message?: string; code?: string } };
           return json({
