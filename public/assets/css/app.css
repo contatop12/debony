@@ -509,3 +509,280 @@ header.elementor.elementor-22.sticky {
 .elementor .elementor-element.elementor-element-2f0ffc7[data-contraste='escuro'] .elementor-element.elementor-element-265527d div.elementor-menu-toggle svg {
   fill: #fff;
 }
+
+/* ---------------------------------------------------------------------------
+   WhatsApp flutuante com os telefones (src/whatsapp.ts)
+   --------------------------------------------------------------------------- */
+
+/*
+ * Canto inferior direito: o esquerdo é da caixa de cookies no computador. No
+ * celular a caixa ocupa a largura toda e cobre o botão até o visitante decidir,
+ * o que é o comportamento desejado — consentimento primeiro.
+ *
+ * z-index abaixo do lightbox (100000), que precisa cobrir o botão quando aberto,
+ * e acima do cabeçalho fixo (2000).
+ */
+.debony-whatsapp {
+  position: fixed;
+  right: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 9990;
+  font-family: var(--e-global-typography-text-font-family, 'Montserrat'), sans-serif;
+}
+
+/*
+ * Verde #1DA851, e não o #25D366 da marca: com o ícone branco, o #25D366 dá
+ * 2,0:1, abaixo dos 3:1 que a WCAG pede para elementos gráficos; o #1DA851 dá
+ * 3,1:1 e continua lendo como WhatsApp.
+ *
+ * Estados repetidos com especificidade (0,3,1): o Hello Elementor pinta todo
+ * button de #C36 no hover e no foco.
+ */
+.debony-whatsapp button.debony-whatsapp__botao,
+.debony-whatsapp button.debony-whatsapp__botao:hover,
+.debony-whatsapp button.debony-whatsapp__botao:focus {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background-color: #1da851;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.debony-whatsapp button.debony-whatsapp__botao:hover,
+.debony-whatsapp[data-aberto] button.debony-whatsapp__botao {
+  background-color: #178a43;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.debony-whatsapp button.debony-whatsapp__botao:hover {
+  transform: scale(1.06);
+}
+
+.debony-whatsapp button.debony-whatsapp__botao:focus-visible {
+  outline: 3px solid #0517f5;
+  outline-offset: 3px;
+}
+
+.debony-whatsapp__icone-abrir,
+.debony-whatsapp__icone-fechar {
+  display: flex;
+}
+
+.debony-whatsapp__icone-abrir svg {
+  width: 30px;
+  height: 32px;
+}
+
+.debony-whatsapp__icone-fechar svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* O "X" só quando fixado por clique/toque, que é quando o próximo clique fecha. */
+.debony-whatsapp__icone-fechar,
+.debony-whatsapp[data-fixo] .debony-whatsapp__icone-abrir {
+  display: none;
+}
+
+.debony-whatsapp[data-fixo] .debony-whatsapp__icone-fechar {
+  display: flex;
+}
+
+/*
+ * Painel sobre o botão. O padding-bottom é a ponte até ele: sem vão, o mouse
+ * não sai da área no caminho entre botão e painel. Fechado fica visibility
+ * hidden, que tira os links do Tab e do leitor de tela; o atraso só no
+ * visibility deixa a transição de saída terminar.
+ */
+.debony-whatsapp__painel {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  width: min(360px, calc(100vw - 48px));
+  padding-bottom: 12px;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+.debony-whatsapp[data-aberto] .debony-whatsapp__painel {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s;
+}
+
+.debony-whatsapp__cartao {
+  max-height: calc(100vh - 130px);
+  max-height: calc(100dvh - 130px);
+  overflow-y: auto;
+  padding: 16px 14px 10px;
+  border-radius: 14px;
+  background-color: #fff;
+  color: #1c1c1c;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  text-align: left;
+}
+
+/* Margens do tema zeradas: p leva .9rem embaixo no Hello Elementor. */
+.debony-whatsapp p.debony-whatsapp__titulo {
+  margin: 0 0 10px;
+  color: #1c1c1c;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.debony-whatsapp__unidade + .debony-whatsapp__unidade {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e6e6e6;
+}
+
+/* #4A616E é a cor de texto do kit do site: 6,5:1 sobre o branco. */
+.debony-whatsapp p.debony-whatsapp__unidade-nome {
+  margin: 0 0 2px;
+  color: #4a616e;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debony-whatsapp ul.debony-whatsapp__lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Quebra para a linha de baixo só se não couber (celular estreito). */
+.debony-whatsapp__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 0;
+}
+
+.debony-whatsapp__numero {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  color: #1c1c1c;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/*
+ * contain: inline-size tira a nota do cálculo de largura: ela quebra dentro da
+ * largura do número em vez de alargar a coluna e empurrar os botões para baixo.
+ */
+.debony-whatsapp__nota {
+  contain: inline-size;
+  color: #4a616e;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.debony-whatsapp__acoes {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* "Ligar" sempre por último: fica alinhado na mesma coluna em todas as linhas. */
+.debony-whatsapp a.debony-whatsapp__acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.debony-whatsapp a.debony-whatsapp__acao svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+/* Texto branco: azul do site dá 8,6:1; o verde escuro dá 5,3:1 (o do botão, 3,1:1, não serve para texto). */
+.debony-whatsapp a.debony-whatsapp__acao--ligar {
+  background-color: #0517f5;
+}
+
+.debony-whatsapp a.debony-whatsapp__acao--ligar:hover {
+  background-color: #0310c0;
+  color: #fff;
+}
+
+.debony-whatsapp a.debony-whatsapp__acao--whatsapp {
+  background-color: #107c3f;
+}
+
+.debony-whatsapp a.debony-whatsapp__acao--whatsapp:hover {
+  background-color: #0b5f30;
+  color: #fff;
+}
+
+.debony-whatsapp a.debony-whatsapp__acao:focus-visible {
+  outline: 2px solid #1c1c1c;
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .debony-whatsapp {
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .debony-whatsapp button.debony-whatsapp__botao,
+  .debony-whatsapp button.debony-whatsapp__botao:hover,
+  .debony-whatsapp button.debony-whatsapp__botao:focus {
+    width: 54px;
+    height: 54px;
+  }
+
+  .debony-whatsapp__painel {
+    width: calc(100vw - 32px);
+    max-width: 360px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .debony-whatsapp button.debony-whatsapp__botao,
+  .debony-whatsapp__painel,
+  .debony-whatsapp[data-aberto] .debony-whatsapp__painel,
+  .debony-whatsapp a.debony-whatsapp__acao {
+    transition: none;
+  }
+
+  .debony-whatsapp button.debony-whatsapp__botao:hover,
+  .debony-whatsapp__painel {
+    transform: none;
+  }
+}

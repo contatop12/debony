@@ -45,6 +45,7 @@ node tools/test-lightbox.mjs http://127.0.0.1:8905/certificados/
 node tools/test-menu.mjs     http://127.0.0.1:8905
 node tools/test-cabecalho.mjs http://127.0.0.1:8905
 node tools/scan-404.mjs      http://127.0.0.1:8905
+node tools/test-whatsapp.mjs http://127.0.0.1:8905
 ```
 
 ## Deploy na Vercel
@@ -189,6 +190,45 @@ externo e não para o fixo: o fundo nunca aparecia, e o padding empurrava a
 página inteira 24px ao passar de 110px de rolagem. `tools/test-cabecalho.mjs`
 cobre os tipos de fundo do site, as cores, o contraste real do texto (≥ 4,5:1) e
 a ausência desse salto.
+
+## WhatsApp flutuante
+
+`src/whatsapp.ts` adiciona em todas as páginas um botão fixo no canto inferior
+direito, com o ícone de WhatsApp do próprio site. Ao passar o mouse ele abre um
+painel com todos os telefones, agrupados por unidade, cada um com **Ligar**
+(`tel:+55…`) e, quando atende no WhatsApp, **WhatsApp** (`wa.me`, em nova aba,
+com mensagem pré-preenchida):
+
+| Unidade             | Número         | Ligar | WhatsApp |
+| ------------------- | -------------- | :---: | :------: |
+| Debony · São Paulo  | (11) 5687-7566 |   ✓   |    ✓     |
+| Debony · São Paulo  | (11) 5687-7381 |   ✓   |          |
+| Debony · São Paulo  | (11) 5687-7382 |   ✓   |          |
+| Joluma · Valinhos   | (19) 3881-3448 |   ✓   |          |
+
+Os números são os do rodapé e da página de contato. Lá, só o (11) 5687-7566
+aparece como WhatsApp, e ele atende as duas unidades. Para mudar número,
+unidade ou mensagem, ou liberar o WhatsApp em outro número (`whatsapp: true`),
+edite a lista `UNIDADES` no topo do arquivo e rode o build.
+
+- **Abre** com o mouse em cima e fecha 250ms depois de sair. O painel encosta no
+  botão, sem vão, então o caminho entre os dois não o fecha. No celular, onde
+  não há hover, abre com um toque.
+- **Clique ou toque fixa** o painel aberto e troca o ícone por um "X"; fecha com
+  outro clique, com clique fora, com `Esc` ou quando o foco sai do componente.
+- **Teclado**: `Enter` abre, `Tab` percorre os botões e `Esc` fecha e devolve o
+  foco ao botão. Fechado, o painel fica `visibility: hidden` e sai do `Tab` e do
+  leitor de tela.
+- **Cores**: botão verde `#1DA851` (o `#25D366` da marca dá 2,0:1 com o ícone
+  branco, abaixo dos 3:1 da WCAG para gráficos). Nos botões com texto, o verde é
+  `#107C3F` (5,3:1) e o azul é o do site (8,6:1). O CSS sobrepõe o `#C36` que o
+  Hello Elementor aplica em todo `button` e o link branco do kit.
+- **Canto direito** porque o esquerdo é da caixa de cookies no computador. No
+  celular a caixa ocupa a largura toda e cobre o botão até o visitante decidir.
+- Fica abaixo do lightbox (que o cobre quando aberto) e acima do cabeçalho.
+
+`tools/test-whatsapp.mjs` cobre tudo isso no Chrome, inclusive o toque e a
+largura de 360px.
 
 ## Customizações pedidas pelo cliente
 

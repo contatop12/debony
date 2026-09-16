@@ -4,6 +4,7 @@ import { onReady } from './dom';
 import { initHeaderContrast } from './header-contrast';
 import { initLightbox } from './lightbox';
 import { initSmoothAnchors } from './smooth-anchors';
+import { initWhatsApp } from './whatsapp';
 
 // Antes do DOM: só depende da URL, e precisa ter rodado quando o visitante navegar.
 captureAttribution();
@@ -13,4 +14,5 @@ onReady(() => {
   initContactForms();
   initLightbox();
   initSmoothAnchors();
+  initWhatsApp();
 });
