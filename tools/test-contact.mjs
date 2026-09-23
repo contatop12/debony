@@ -61,7 +61,7 @@ const chamar = (body, { method = 'POST', origin, headers = {} } = {}) =>
     }),
   );
 
-const validos = { name: 'Fulano', email: 'fulano@exemplo.com', message: 'Gostaria de um orçamento.' };
+const validos = { name: 'Fulano', email: 'fulano@exemplo.com', phone: '(11) 98765-4321', message: 'Gostaria de um orçamento.' };
 
 const limparEnv = () => {
   for (const k of ['CONTACT_TO', 'CONTACT_FROM', 'RESEND_API_KEY', 'CONTACT_WEBHOOK']) {
@@ -93,6 +93,15 @@ check('sem nome responde 400', r.status === 400 && (await r.json()).error === 'I
 
 r = await chamar({ ...validos, email: 'invalido' });
 check('e-mail inválido responde 400', r.status === 400 && (await r.json()).error.includes('e-mail'));
+
+r = await chamar({ ...validos, phone: '' });
+check('sem telefone responde 400', r.status === 400 && (await r.json()).error.includes('telefone'));
+
+r = await chamar({ ...validos, phone: '98765-4321' });
+check('telefone sem DDD responde 400', r.status === 400, `${r.status}`);
+
+r = await chamar({ ...validos, phone: '11 98765-4321 ramal 12345' });
+check('telefone com dígitos demais responde 400', r.status === 400, `${r.status}`);
 
 r = await chamar({ ...validos, message: 'oi' });
 check('mensagem curta responde 400', r.status === 400);
@@ -135,6 +144,7 @@ check(
   r.status === 200 && lead?.email === validos.email && lead?.name === validos.name,
   `${r.status}, webhook recebeu ${recebidos.length}`,
 );
+check('telefone chega ao webhook como foi digitado', lead?.phone === validos.phone, `${lead?.phone}`);
 check('resposta não é cacheável', r.headers.get('Cache-Control') === 'no-store');
 check('ip é o primeiro da cadeia x-forwarded-for', lead?.ip === '203.0.113.7', `${lead?.ip}`);
 check('sem atribuição o lead não ganha campos utm', !Object.keys(lead ?? {}).some((k) => k.startsWith('utm_')));
@@ -186,6 +196,12 @@ check('campo válido do mesmo envio passa', lead?.utm_source === 'meta');
 
 r = await chamar({ ...validos, attribution: ['nao', 'e', 'objeto'] }, { origin: ORIGEM });
 check('atribuição em formato inválido não derruba o envio', r.status === 200);
+
+for (const phone of ['+55 (11) 98765-4321', '1156877566', '+55 55 3333-4444']) {
+  r = await chamar({ ...validos, phone }, { origin: ORIGEM });
+  lead = ultimoRecebido();
+  check(`telefone "${phone}" é aceito e entregue`, r.status === 200 && lead?.phone === phone, `${r.status}`);
+}
 
 // --- falha do destino -------------------------------------------------------
 statusDoStub = 500;

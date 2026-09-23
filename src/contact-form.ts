@@ -44,6 +44,7 @@ async function handleSubmit(event: Event, form: HTMLFormElement): Promise<void> 
   const payload: ContactPayload = {
     name: fieldValue(form, 'form_fields[name]'),
     email: fieldValue(form, 'form_fields[email]'),
+    phone: fieldValue(form, 'form_fields[telefone]'),
     message: fieldValue(form, 'form_fields[message]'),
     website: fieldValue(form, 'form_fields[website]'),
     attribution: { ...getAttribution(), page_url: location.href },
@@ -89,8 +90,19 @@ async function handleSubmit(event: Event, form: HTMLFormElement): Promise<void> 
 function validate(p: ContactPayload): string | null {
   if (p.name.length < 2) return 'Informe seu nome.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(p.email)) return 'Informe um e-mail válido.';
+  if (!telefoneValido(p.phone)) return 'Informe seu WhatsApp ou telefone com DDD.';
   if (p.message.length < 5) return 'Escreva sua mensagem.';
   return null;
+}
+
+/**
+ * Telefone brasileiro com DDD: 10 ou 11 dígitos, aceitando +55 na frente e
+ * qualquer pontuação. A mesma regra vale em api/contact.ts, que é quem decide.
+ */
+function telefoneValido(raw: string): boolean {
+  const digitos = raw.replace(/\D/g, '');
+  const nacional = digitos.startsWith('55') && digitos.length > 11 ? digitos.slice(2) : digitos;
+  return nacional.length === 10 || nacional.length === 11;
 }
 
 const MESSAGES: Record<Exclude<FormStatus, 'idle'>, string> = {

@@ -103,7 +103,14 @@ enviar agora" (502) em vez de uma confirmação falsa.
 ## Formulário e atribuição (UTMs)
 
 O formulário de `/contato/` envia para `/api/contact`, que repassa o lead ao
-webhook. Junto com nome, e-mail e mensagem vão os dados de origem da visita.
+webhook. Junto com nome, e-mail, telefone e mensagem vão os dados de origem da
+visita.
+
+O campo de telefone não existe no site de origem: o build o insere entre o
+e-mail e a mensagem (regra em `CUSTOMIZACOES`, `tools/build.mjs`). É
+obrigatório, com DDD — 10 ou 11 dígitos, aceitando `+55` e qualquer pontuação —
+e segue ao webhook como foi digitado, no campo `phone`. Sem ele o aviso no
+grupo do cliente saía com "WhatsApp: (nao informado)".
 
 **Captura.** O visitante chega pelo anúncio numa página qualquer — em geral a
 home — e só depois navega até o contato, momento em que os parâmetros já sumiram
@@ -118,7 +125,7 @@ parâmetros (acesso direto, navegação interna) não apagam o que já existe.
 
 | Campo | Origem |
 |---|---|
-| `name`, `email`, `message` | formulário |
+| `name`, `email`, `phone`, `message` | formulário |
 | `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content` | URL de chegada |
 | `gclid`, `fbclid` | IDs de clique do Google Ads e da Meta |
 | `landing_page` | URL em que o visitante chegou com os parâmetros |
@@ -272,6 +279,12 @@ Em vigor:
     original. `width`, `height`, `class` e `fetchpriority` ficam como estavam,
     então layout e prioridade de carregamento do cabeçalho não mudam.
   - Para trocar a logo no futuro: substitua o PNG, rode `npm run logo` e o build.
+- **`/contato/`, formulário** — campo "Seu WhatsApp ou telefone" entre o e-mail
+  e a mensagem, obrigatório (2026-09-23). Mesmo markup dos campos do Elementor,
+  então herda o estilo; `type="tel"` abre o teclado numérico no celular. A
+  validação está em `src/contact-form.ts` (antes do envio) e em `api/contact.ts`
+  (quem decide). No n8n o campo `phone` vai para a coluna TELEFONE da planilha e
+  para a Pulseboard como `telefone`.
 - **Todas as páginas, menu do cabeçalho** — horizontal no computador, hambúrguer
   só em telas menores.
   - O widget do Elementor estava com layout "dropdown", que gera só a lista

@@ -110,11 +110,14 @@ const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new'
 const page = await browser.newPage();
 await page.setViewport({ width: 1440, height: 900 });
 
+const TELEFONE = '(11) 98765-4321';
+
 async function enviarFormulario(nome, email) {
   await page.goto(`${BASE}/contato/`, { waitUntil: 'networkidle2', timeout: 60000 });
   await page.evaluate(() => document.querySelector('.cky-consent-container')?.remove());
   await page.type('[name="form_fields[name]"]', nome);
   await page.type('[name="form_fields[email]"]', email);
+  await page.type('[name="form_fields[telefone]"]', TELEFONE);
   await page.type('[name="form_fields[message]"]', 'Mensagem de teste automatizado.');
   await page.click('form.elementor-form button[type="submit"]');
   await page.waitForSelector(
@@ -135,6 +138,21 @@ let tela = await enviarFormulario('Visitante Google', 'google@exemplo.com');
 let lead = leads.at(-1);
 check('formulário mostra sucesso', tela.status === 'success', tela.texto);
 check('lead chega ao webhook com nome e e-mail', lead?.name === 'Visitante Google' && lead?.email === 'google@exemplo.com');
+check('telefone digitado chega ao webhook', lead?.phone === TELEFONE, `${lead?.phone}`);
+check(
+  'campo de telefone está entre o e-mail e a mensagem, com teclado numérico',
+  await page.$eval('form.elementor-form', (f) => {
+    const nomes = [...f.querySelectorAll('input, textarea')]
+      .map((el) => el.getAttribute('name'))
+      .filter((n) => n && n.startsWith('form_fields[') && n !== 'form_fields[website]');
+    const tel = f.querySelector('[name="form_fields[telefone]"]');
+    return (
+      nomes.join(',') === 'form_fields[name],form_fields[email],form_fields[telefone],form_fields[message]' &&
+      tel?.type === 'tel' &&
+      tel?.getAttribute('inputmode') === 'tel'
+    );
+  }),
+);
 check(
   'UTMs da chegada sobrevivem à navegação até /contato/',
   lead?.utm_source === 'google' && lead?.utm_medium === 'cpc' && lead?.utm_campaign === 'usinagem-sp' && lead?.utm_content === 'anuncio-a',
@@ -168,6 +186,7 @@ await pageSemOrigem.setViewport({ width: 1440, height: 900 });
   await pageSemOrigem.evaluate(() => document.querySelector('.cky-consent-container')?.remove());
   await pageSemOrigem.type('[name="form_fields[name]"]', 'Visitante Direto');
   await pageSemOrigem.type('[name="form_fields[email]"]', 'direto@exemplo.com');
+  await pageSemOrigem.type('[name="form_fields[telefone]"]', TELEFONE);
   await pageSemOrigem.type('[name="form_fields[message]"]', 'Acesso direto, sem campanha.');
   await pageSemOrigem.click('form.elementor-form button[type="submit"]');
   await pageSemOrigem.waitForSelector('.debony-form-message[data-status="success"]', { timeout: 15000 });

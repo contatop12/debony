@@ -17,6 +17,8 @@ export interface Attribution {
 export interface ContactPayload {
   name: string;
   email: string;
+  /** WhatsApp ou telefone com DDD, como o visitante digitou. */
+  phone: string;
   message: string;
   /** Honeypot: preenchido só por bot. */
   website?: string;

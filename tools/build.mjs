@@ -203,6 +203,25 @@ const CUSTOMIZACOES = [
     presente: 'data-debony="menu-horizontal"',
     substituto: (bloco) => montarMenuHorizontal(bloco),
   },
+  {
+    paginas: ['contato/index.html'],
+    motivo: 'Campo de WhatsApp/telefone no formulário de contato (2026-09-23)',
+    /*
+     * O formulário da origem só pede nome, e-mail e mensagem. Sem telefone, o
+     * aviso no grupo sai com "WhatsApp: (nao informado)" e ninguém consegue
+     * responder ao lead. O campo entra entre o e-mail e a mensagem, com o mesmo
+     * markup dos campos do Elementor, para herdar o estilo do kit.
+     * `src/contact-form.ts` lê `form_fields[telefone]` e `api/contact.ts` valida
+     * e repassa como `phone` ao webhook.
+     * O padrão casa também o campo já inserido, para o build ser idempotente.
+     */
+    padrao:
+      /(?:<div class="[^"]*elementor-field-group-telefone[^"]*"[^>]*>[\s\S]*?<\/div>\s*)?<div class="[^"]*elementor-field-group-message[^"]*"[^>]*>/,
+    presente: 'data-debony="telefone"',
+    // O que casou termina na abertura do grupo da mensagem (o último <div class=);
+    // o que vier antes é um campo de telefone de um build anterior, e é descartado.
+    substituto: (bloco) => campoTelefone() + bloco.slice(bloco.lastIndexOf('<div class="')),
+  },
 ];
 
 /**
@@ -256,6 +275,21 @@ function montarMenuHorizontal(bloco) {
 
   // Antes do botão, na mesma posição em que o Elementor põe a <nav> horizontal.
   return comWidget.replace('<div class="elementor-menu-toggle"', (botao) => nav + botao);
+}
+
+/**
+ * Campo de telefone do formulário de contato, no markup que o Elementor usa para
+ * os outros campos (mesmas classes, então herda o estilo do kit). `type="tel"` e
+ * `inputmode="tel"` abrem o teclado numérico no celular; `autocomplete="tel"`
+ * deixa o navegador preencher. Obrigatório: é o dado que faltava para responder.
+ */
+function campoTelefone() {
+  return (
+    '<div class="elementor-field-type-tel elementor-field-group elementor-column elementor-field-group-telefone elementor-col-100 elementor-field-required" data-debony="telefone">\n' +
+    '\t<label for="form-field-telefone" class="elementor-field-label">Seu WhatsApp ou telefone</label>\n' +
+    '\t<input size="1" type="tel" name="form_fields[telefone]" id="form-field-telefone" class="elementor-field elementor-size-sm  elementor-field-textual" placeholder="(11) 99999-9999" autocomplete="tel" inputmode="tel" required="required">\n' +
+    '</div>\n'
+  );
 }
 
 async function aplicarCustomizacoes() {

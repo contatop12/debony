@@ -21,6 +21,7 @@
 interface ContactPayload {
   name?: unknown;
   email?: unknown;
+  phone?: unknown;
   message?: unknown;
   website?: unknown;
   attribution?: unknown;
@@ -29,12 +30,14 @@ interface ContactPayload {
 interface Submission {
   name: string;
   email: string;
+  /** WhatsApp ou telefone com DDD, como o visitante digitou. */
+  phone: string;
   message: string;
 }
 
 // Folga para a atribuição, que traz URLs longas (landing_page, referrer).
 const MAX_BODY_BYTES = 16 * 1024;
-const LIMITS = { name: 120, email: 200, message: 4000 } as const;
+const LIMITS = { name: 120, email: 200, phone: 40, message: 4000 } as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
@@ -145,13 +148,15 @@ export default {
 
     const name = clean(body.name, LIMITS.name);
     const email = clean(body.email, LIMITS.email);
+    const phone = clean(body.phone, LIMITS.phone);
     const message = clean(body.message, LIMITS.message);
 
     if (name.length < 2) return json({ ok: false, error: 'Informe seu nome.' }, 400);
     if (!EMAIL_RE.test(email)) return json({ ok: false, error: 'Informe um e-mail válido.' }, 400);
+    if (!telefoneValido(phone)) return json({ ok: false, error: 'Informe seu WhatsApp ou telefone com DDD.' }, 400);
     if (message.length < 5) return json({ ok: false, error: 'Escreva sua mensagem.' }, 400);
 
-    const submission: Submission = { name, email, message };
+    const submission: Submission = { name, email, phone, message };
     const attribution = cleanAttribution(body.attribution);
     const tasks: Promise<Response>[] = [];
 
@@ -226,6 +231,18 @@ function clean(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
+/**
+ * Telefone brasileiro com DDD: 10 ou 11 dígitos, aceitando +55 na frente e
+ * qualquer pontuação ("(11) 98765-4321", "+55 11 98765-4321"). O número segue ao
+ * webhook como foi digitado; quem extrai os dígitos é a Pulseboard.
+ * A mesma regra está em src/contact-form.ts, para o erro aparecer antes do envio.
+ */
+function telefoneValido(raw: string): boolean {
+  const digitos = raw.replace(/\D/g, '');
+  const nacional = digitos.startsWith('55') && digitos.length > 11 ? digitos.slice(2) : digitos;
+  return nacional.length === 10 || nacional.length === 11;
+}
+
 function cleanAttribution(value: unknown): Attribution {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const source = value as Record<string, unknown>;
@@ -263,7 +280,7 @@ function sendViaResend(
       reply_to: s.email,
       subject: `Contato pelo site — ${s.name}`,
       text:
-        `Nome: ${s.name}\nE-mail: ${s.email}\n\n${s.message}` +
+        `Nome: ${s.name}\nE-mail: ${s.email}\nWhatsApp/Telefone: ${s.phone}\n\n${s.message}` +
         (origem ? `\n\n--- Origem ---\n${origem}` : ''),
     }),
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
