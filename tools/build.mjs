@@ -282,6 +282,8 @@ function montarMenuHorizontal(bloco) {
  * os outros campos (mesmas classes, então herda o estilo do kit). `type="tel"` e
  * `inputmode="tel"` abrem o teclado numérico no celular; `autocomplete="tel"`
  * deixa o navegador preencher. Obrigatório: é o dado que faltava para responder.
+ * A máscara (11) 98765-4321 e o limite de 11 dígitos vêm de src/phone-mask.ts
+ * (sem maxlength: ele barraria o 12.º dígito antes de a máscara descartar o +55).
  */
 function campoTelefone() {
   return (

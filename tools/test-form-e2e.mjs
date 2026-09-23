@@ -163,6 +163,35 @@ check('landing_page é a URL de chegada', lead?.landing_page?.includes('utm_sour
 check('page_url é a página do formulário', lead?.page_url?.endsWith('/contato/'), lead?.page_url);
 check('visita sem UTM no meio do caminho não apagou a atribuição', lead?.utm_source === 'google');
 
+// Máscara do telefone: formata enquanto digita, corta no 11.º dígito, aceita +55 colado.
+{
+  await page.goto(`${BASE}/contato/`, { waitUntil: 'networkidle2', timeout: 60000 });
+  await page.evaluate(() => document.querySelector('.cky-consent-container')?.remove());
+  const tel = '[name="form_fields[telefone]"]';
+  const valor = () => page.$eval(tel, (el) => el.value);
+  const limpar = () => page.$eval(tel, (el) => (el.value = ''));
+
+  await page.type(tel, '11987654321999');
+  check('máscara formata o celular e corta no 11.º dígito', (await valor()) === '(11) 98765-4321', await valor());
+
+  await limpar();
+  await page.type(tel, '1156877566');
+  check('máscara formata o fixo com 10 dígitos', (await valor()) === '(11) 5687-7566', await valor());
+
+  await limpar();
+  await page.type(tel, '+55 11 98765-4321');
+  check('+55 colado vira o formato nacional', (await valor()) === '(11) 98765-4321', await valor());
+
+  await page.keyboard.press('Backspace');
+  // Com 10 dígitos a máscara volta ao formato de fixo, 4-4.
+  check('backspace apaga o último dígito', (await valor()) === '(11) 9876-5432', await valor());
+
+  // Cursor logo depois do ")" e backspace: apaga o dígito anterior, não fica preso no separador.
+  await page.$eval(tel, (el) => el.setSelectionRange(4, 4));
+  await page.keyboard.press('Backspace');
+  check('backspace sobre o separador apaga o dígito anterior', (await valor()) === '(19) 8765-432', await valor());
+}
+
 // Cenário 2: volta por um anúncio da Meta. Último toque substitui o anterior.
 await page.goto(`${BASE}/?utm_source=meta&utm_medium=social&fbclid=FB-456`, {
   waitUntil: 'networkidle2',

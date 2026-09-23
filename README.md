@@ -109,7 +109,9 @@ visita.
 O campo de telefone não existe no site de origem: o build o insere entre o
 e-mail e a mensagem (regra em `CUSTOMIZACOES`, `tools/build.mjs`). É
 obrigatório, com DDD — 10 ou 11 dígitos, aceitando `+55` e qualquer pontuação —
-e segue ao webhook como foi digitado, no campo `phone`. Sem ele o aviso no
+e segue ao webhook como foi digitado, no campo `phone`. `src/phone-mask.ts`
+formata enquanto digita, `(11) 5687-7566` ou `(11) 98765-4321`, corta no 11.º
+dígito e descarta um `+55` colado; o cursor acompanha o dígito em que estava. Sem ele o aviso no
 grupo do cliente saía com "WhatsApp: (nao informado)".
 
 **Captura.** O visitante chega pelo anúncio numa página qualquer — em geral a

@@ -1,5 +1,6 @@
 import { getAttribution } from './attribution';
 import { $$, fieldValue } from './dom';
+import { aplicarMascaraTelefone } from './phone-mask';
 import type { ContactPayload, ContactResponse, FormStatus } from './types';
 
 const ENDPOINT = '/api/contact';
@@ -16,6 +17,8 @@ export function initContactForms(): void {
   for (const form of forms) {
     form.setAttribute('novalidate', '');
     addHoneypot(form);
+    const telefone = form.elements.namedItem('form_fields[telefone]');
+    if (telefone instanceof HTMLInputElement) aplicarMascaraTelefone(telefone);
     // Captura para rodar antes do handler jQuery do Elementor.
     form.addEventListener('submit', (event) => void handleSubmit(event, form), true);
   }
